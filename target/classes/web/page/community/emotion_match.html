@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>情绪匹配推荐</title>
+    <!--网站图标-->
+    <link rel="shortcut icon" href="../../images/favicon.ico">
+    <!-- 样式 -->
+    <link rel="stylesheet" href="../../css/community.css">
+    <link rel="stylesheet" href="../../element-ui/lib/theme-chalk/index.css">
+    <!-- 引入组件库 -->
+    <script src="../../js/vue.js"></script>
+    <!-- 引入axios库 -->
+    <script src="../../js/axios.min.js"></script>
+    <script src="../../element-ui/lib/index.js"></script>
+</head>
+<body>
+<div id="app">
+    <el-button @click="goCommunity" type="success" plain>返回社区交流</el-button>
+    <h1 style="text-align: center;margin: 20px auto;">情绪匹配推荐</h1>
+    
+    <div class="emotion-container">
+        <div class="emotion-intro">
+            <p>不同的情绪状态适合不同类型的宠物陪伴。请选择您当前的情绪状态，我们将为您推荐最适合的宠物类型。</p>
+        </div>
+        
+        <!-- 情绪选择区域 -->
+        <div class="emotion-selection">
+            <h3>您当前的情绪状态是？</h3>
+            <el-radio-group v-model="selectedEmotion" @change="showRecommendation">
+                <el-radio v-for="emotion in emotions" :key="emotion.value" :label="emotion.value" border>
+                    {{emotion.label}}
+                </el-radio>
+            </el-radio-group>
+        </div>
+        
+        <!-- 推荐结果区域 -->
+        <div class="recommendation-result" v-if="showResult">
+            <h3>根据您的情绪状态，我们推荐：</h3>
+            
+            <el-carousel :interval="4000" type="card" height="300px" v-if="recommendedPets.length > 0">
+                <el-carousel-item v-for="pet in recommendedPets" :key="pet.id">
+                    <el-card class="pet-card">
+                        <div class="pet-image" :style="{ backgroundImage: 'url(' + pet.image + ')' }"></div>
+                        <div class="pet-info">
+                            <h3>{{pet.name}}</h3>
+                            <p class="pet-type">{{pet.type}}</p>
+                            <p class="pet-description">{{pet.description}}</p>
+                            <p class="pet-reason">{{pet.reason}}</p>
+                            <el-button type="primary" size="small" @click="viewPetDetails(pet.id)">查看详情</el-button>
+                        </div>
+                    </el-card>
+                </el-carousel-item>
+            </el-carousel>
+            
+            <div class="emotion-advice">
+                <h4>情绪建议：</h4>
+                <p>{{currentEmotionAdvice}}</p>
+            </div>
+        </div>
+        
+        <!-- 情绪测试问卷 -->
+        <div class="emotion-questionnaire" v-if="showQuestionnaire">
+            <h3>更精确的情绪测试</h3>
+            <p>回答以下问题，我们将为您提供更精确的宠物推荐</p>
+            
+            <el-form :model="questionnaireForm" label-width="0px" class="questionnaire-form">
+                <el-form-item v-for="(question, index) in questions" :key="index">
+                    <p class="question-text">{{index + 1}}. {{question.text}}</p>
+                    <el-rate v-model="questionnaireForm.answers[index]" :colors="['#99A9BF', '#F7BA2A', '#FF9900']" :texts="['很少', '偶尔', '有时', '经常', '总是']" show-text></el-rate>
+                </el-form-item>
+                
+                <el-form-item>
+                    <el-button type="primary" @click="submitQuestionnaire">提交测试</el-button>
+                </el-form-item>
+            </el-form>
+        </div>
+    </div>
+</div>
+</body>
+
+<script>
+    new Vue({
+        el: '#app',
+        data() {
+            return {
+                // 情绪选项
+                emotions: [
+                    { label: '压力大/焦虑', value: 'stressed' },
+                    { label: '孤独/寂寞', value: 'lonely' },
+                    { label: '抑郁/低落', value: 'depressed' },
+                    { label: '精力充沛/活跃', value: 'energetic' },
+                    { label: '平静/放松', value: 'calm' },
+                    { label: '不确定', value: 'uncertain' }
+                ],
+                selectedEmotion: '',
+                showResult: false,
+                showQuestionnaire: false,
+                recommendedPets: [],
+                currentEmotionAdvice: '',
+                
+                // 情绪测试问卷
+                questionnaireForm: {
+                    answers: [0, 0, 0, 0, 0]
+                },
+                questions: [
+                    { text: '您最近感到精力不足或疲惫吗？' },
+                    { text: '您是否经常感到孤独或缺乏社交互动？' },
+                    { text: '您是否有足够的时间照顾宠物？' },
+                    { text: '您是否喜欢安静的环境？' },
+                    { text: '您是否喜欢户外活动？' }
+                ],
+                
+                // 宠物数据库
+                petDatabase: [
+                    {
+                        id: 1,
+                        name: '金毛寻回犬',
+                        type: '大型犬',
+                        image: '../../images/golden_retriever.jpg',
+                        description: '友善、忠诚、活泼，适合家庭饲养',
+                        reason: '金毛性格温顺友好，能给予主人无条件的爱和支持，适合缓解孤独感和抑郁情绪。',
+                        emotionMatch: ['lonely', 'depressed']
+                    },
+                    {
+                        id: 2,
+                        name: '英国短毛猫',
+                        type: '猫咪',
+                        image: '../../images/british_shorthair.jpg',
+                        description: '安静、独立、亲人，适合公寓生活',
+                        reason: '英短性格沉稳，不需要过多照顾，能给予主人适度的陪伴和空间，适合压力大的人。',
+                        emotionMatch: ['stressed', 'calm']
+                    },
+                    {
+                        id: 3,
+                        name: '边境牧羊犬',
+                        type: '中型犬',
+                        image: '../../images/border_collie.jpg',
+                        description: '聪明、敏捷、精力充沛，需要大量运动',
+                        reason: '边牧智商高，需要大量活动和训练，适合精力充沛且喜欢户外活动的人。',
+                        emotionMatch: ['energetic']
+                    },
+                    {
+                        id: 4,
+                        name: '仓鼠',
+                        type: '小型宠物',
+                        image: '../../images/hamster.jpg',
+                        description: '可爱、安静、易于照顾，适合初次养宠',
+                        reason: '仓鼠照顾简单，观察它们的活动可以带来放松和愉悦感，适合压力大或初养宠物的人。',
+                        emotionMatch: ['stressed', 'calm']
+                    },
+                    {
+                        id: 5,
+                        name: '布偶猫',
+                        type: '猫咪',
+                        image: '../../images/ragdoll.jpg',
+                        description: '温顺、亲人、粘人，被称为"狗性猫"',
+                        reason: '布偶猫性格温顺亲人，会跟随主人，提供情感支持，适合感到孤独或需要陪伴的人。',
+                        emotionMatch: ['lonely', 'depressed']
+                    },
+                    {
+                        id: 6,
+                        name: '柯基犬',
+                        type: '小型犬',
+                        image: '../../images/corgi.jpg',
+                        description: '活泼、友善、聪明，适合家庭饲养',
+                        reason: '柯基性格开朗活泼，能带给主人欢乐和活力，适合情绪低落或需要生活乐趣的人。',
+                        emotionMatch: ['depressed', 'energetic']
+                    }
+                ],
+                
+                // 情绪建议
+                emotionAdvice: {
+                    stressed: '当您感到压力大或焦虑时，与宠物的互动可以帮助降低压力激素水平。选择一只安静、独立的宠物可能更适合您，它们不会增加您的负担，同时能提供情感支持。',
+                    lonely: '感到孤独时，一个忠诚的宠物伙伴可以提供无条件的爱和陪伴。选择社交性强、喜欢互动的宠物可以帮助您建立情感连接。',
+                    depressed: '宠物可以帮助改善抑郁情绪，它们提供的责任感和日常结构可以增强您的目标感。选择需要定期照顾和互动的宠物可以帮助您保持积极的生活节奏。',
+                    energetic: '当您精力充沛时，一个同样活跃的宠物伙伴可以成为您运动和户外活动的好搭档。选择需要大量运动的宠物可以帮助您消耗多余能量。',
+                    calm: '在平静放松的状态下，您可能更适合饲养一些同样安静的宠物，它们可以与您共享宁静的时光，不会打扰您的平和。',
+                    uncertain: '如果您不确定自己的情绪状态，可以尝试完成我们的情绪测试问卷，或者考虑选择适应性强、性格温和的宠物品种。'
+                }
+            };
+        },
+        methods: {
+            //返回社区交流页面
+            goCommunity() {
+                window.location.href = './community.html'
+            },
+            
+            // 显示推荐结果
+            showRecommendation() {
+                if (this.selectedEmotion === 'uncertain') {
+                    this.showQuestionnaire = true;
+                    this.showResult = false;
+                } else {
+                    this.filterPetsByEmotion();
+                    this.currentEmotionAdvice = this.emotionAdvice[this.selectedEmotion];
+                    this.showResult = true;
+                    this.showQuestionnaire = false;
+                }
+            },
+            
+            // 根据情绪筛选宠物
+            filterPetsByEmotion() {
+                this.recommendedPets = this.petDatabase.filter(pet => 
+                    pet.emotionMatch.includes(this.selectedEmotion)
+                );
+            },
+            
+            // 查看宠物详情
+            viewPetDetails(petId) {
+                // 跳转到宠物详情页面
+                window.location.href = `/web/page/pets/pets.html?petId=${petId}`;
+            },
+            
+            // 提交情绪测试问卷
+            submitQuestionnaire() {
+                // 根据问卷回答计算最适合的情绪类型
+                const answers = this.questionnaireForm.answers;
+                
+                // 简单的评分算法，根据答案推断情绪状态
+                if (answers[0] >= 4 && answers[2] <= 2) { // 疲惫且没时间
+                    this.selectedEmotion = 'stressed';
+                } else if (answers[1] >= 4) { // 孤独感强
+                    this.selectedEmotion = 'lonely';
+                } else if (answers[0] >= 3 && answers[1] >= 3) { // 疲惫且孤独
+                    this.selectedEmotion = 'depressed';
+                } else if (answers[4] >= 4 && answers[2] >= 3) { // 喜欢户外且有时间
+                    this.selectedEmotion = 'energetic';
+                } else if (answers[3] >= 4) { // 喜欢安静
+                    this.selectedEmotion = 'calm';
+                } else {
+                    // 默认推荐
+                    this.selectedEmotion = 'calm';
+                }
+                
+                // 显示推荐结果
+                this.filterPetsByEmotion();
+                this.currentEmotionAdvice = this.emotionAdvice[this.selectedEmotion];
+                this.showResult = true;
+                this.showQuestionnaire = false;
+                
+                // 提示用户
+                this.$message({
+                    message: '根据您的回答，我们为您推荐了最适合的宠物',
+                    type: 'success'
+                });
+            }
+        }
+    })
+</script>
+
+<style>
+/* 情绪匹配页面特有样式 */
+.emotion-container {
+    width: 90%;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: var(--colorShadeE);
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.emotion-intro {
+    text-align: center;
+    margin-bottom: 30px;
+    padding: 15px;
+    background-color: rgba(255, 255, 255, 0.5);
+    border-radius: 8px;
+}
+
+.emotion-selection {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.emotion-selection h3 {
+    margin-bottom: 20px;
+    color: var(--colorShadeA);
+}
+
+.el-radio {
+    margin: 10px;
+}
+
+.recommendation-result {
+    margin-top: 30px;
+    padding: 20px;
+    background-color: rgba(255, 255, 255, 0.5);
+    border-radius: 8px;
+}
+
+.recommendation-result h3 {
+    text-align: center;
+    color: var(--colorShadeA);
+    margin-bottom: 20px;
+}
+
+.pet-card {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.pet-image {
+    height: 150px;
+    background-size: cover;
+    background-position: center;
+    border-radius: 8px 8px 0 0;
+}
+
+.pet-info {
+    padding: 15px;
+}
+
+.pet-type {
+    color: #666;
+    font-size: 14px;
+    margin: 5px 0;
+}
+
+.pet-description {
+    margin: 10px 0;
+}
+
+.pet-reason {
+    font-style: italic;
+    color: var(--colorShadeA);
+    margin: 10px 0;
+}
+
+.emotion-advice {
+    margin-top: 30px;
+    padding: 15px;
+    background-color: rgba(106, 163, 137, 0.1);
+    border-left: 4px solid var(--colorShadeA);
+    border-radius: 4px;
+}
+
+.emotion-advice h4 {
+    margin-top: 0;
+    color: var(--colorShadeA);
+}
+
+.emotion-questionnaire {
+    margin-top: 30px;
+    padding: 20px;
+    background-color: rgba(255, 255, 255, 0.5);
+    border-radius: 8px;
+    text-align: center;
+}
+
+.questionnaire-form {
+    max-width: 600px;
+    margin: 0 auto;
+    text-align: left;
+}
+
+.question-text {
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.el-rate {
+    margin-bottom: 20px;
+}
+</style>
+</html>

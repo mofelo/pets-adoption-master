@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>公告栏</title>
+    <!--网站图标-->
+    <link rel="shortcut icon" href="../../images/favicon.ico">
+    <!-- 样式 -->
+    <link rel="stylesheet" href="../../css/notices.css">
+    <link rel="stylesheet" href="../../element-ui/lib/theme-chalk/index.css">
+    <!-- 引入组件库 -->
+    <script src="../../js/vue.js"></script>
+    <!-- 引入axios库 -->
+    <script src="../../js/axios.min.js"></script>
+    <script src="../../element-ui/lib/index.js"></script>
+</head>
+<body>
+<div id="app">
+
+
+    <el-button @click="goMain" type="success" plain>回主页面</el-button>
+
+    <h1 style="text-align: center;margin: 20px auto;">公告栏</h1>
+
+
+    <template>
+        <!--搜索框-->
+        <el-form :inline="true" :model="formInline" class="demo-form-inline">
+            <el-form-item label="发布人">
+                <el-input v-model="formInline.userRealname" placeholder="发布者的姓名"></el-input>
+            </el-form-item>
+            <el-form-item label="类型">
+                <el-select v-model="formInline.noticeType" placeholder="文章的类型"
+                           @change="changeSelect">
+                    <el-option label="全部" value=""></el-option>
+                    <el-option label="公告" value="1"></el-option>
+                    <el-option label="领养日志" value="2"></el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item>
+                <el-button type="primary" @click="onSubmit">查询</el-button>
+            </el-form-item>
+            <el-form-item>
+                <el-button type="primary"
+                           v-show="showButton"
+                           @click="addNotices">发布
+                </el-button>
+            </el-form-item>
+        </el-form>
+
+        <!--数据框-->
+        <el-table
+                :data="tableData"
+                style="width: 100%"
+                :row-class-name="tableRowClassName"
+                :header-cell-style="headClass"
+                :cell-style="headClass"
+                :align="center">
+            <el-table-column
+                    prop="noticeId"
+                    label="编号">
+            </el-table-column>
+
+            <el-table-column
+                    prop="image"
+                    label="图片"
+                    align="center"
+            >
+                <template slot-scope="{ row }">
+                    <el-image style="width: auto; height: 40px; border:none;cursor: pointer;"
+                              :src="getImage(row.noticeImage)">
+                        <div slot="error" class="image-slot">
+                            <!--图片加载失败之后显示的图片-->
+                            <img src="../../images/logo.jpg" style="width: auto; height: 40px; border:none;">
+                        </div>
+                    </el-image>
+                </template>
+            </el-table-column>
+
+            <el-table-column
+                    prop="userRealname"
+                    label="发布者">
+            </el-table-column>
+
+            <el-table-column
+                    prop="noticeDate"
+                    label="发布时间">
+            </el-table-column>
+
+            <el-table-column
+                    :formatter="formatType"
+                    prop="noticeType"
+                    label="类型">
+            </el-table-column>
+
+            <el-table-column
+                    prop="notticeTitle"
+                    label="标题">
+            </el-table-column>
+            <el-table-column
+                    prop="noticeContext"
+                    :formatter="formatContext"
+                    label="内容">
+            </el-table-column>
+
+            <el-table-column
+                    label="操作"
+                    width="300">
+                <template slot-scope="scope">
+                    <el-button
+                            size="mini"
+                            @click="seeNotice(scope.row)">查看
+                    </el-button>
+                </template>
+            </el-table-column>
+
+        </el-table>
+
+        <!--分页框-->
+        <div class="block">
+            <el-pagination
+                    @size-change="handleSizeChange"
+                    @current-change="handleCurrentChange"
+                    :current-page=formInline.page
+                    :page-sizes="[8,12,24,36]"
+                    :page-size=formInline.pageSize
+                    layout="total, sizes, prev, pager, next, jumper"
+                    :total=formInline.total>
+            </el-pagination>
+        </div>
+
+        <!--弹出面板：新增文章-->
+        <el-dialog title="发布文章" :visible.sync="dialogFormVisible">
+            <el-form :model="newNoticeData" :rules="rules" ref="newNoticeData">
+
+                <el-form-item label="图片"
+                              :label-width="formLabelWidth">
+                    <el-upload class="avatar-uploader"
+                               action="/common/upload"
+                               :show-file-list="false"
+                               :on-success="handleAvatarSuccess"
+                               :on-change="onChange">
+                        <img v-if="imageUrl" :src="getImage(imageName)" class="avatar"></img>
+                        <i v-else class="el-icon-plus avatar-uploader-icon"></i>
+                    </el-upload>
+                </el-form-item>
+
+                <el-form-item label="标题" :label-width="formLabelWidth" style="width: 300px" prop="notticeTitle">
+                    <el-input v-model="newNoticeData.notticeTitle" autocomplete="off"></el-input>
+                </el-form-item>
+
+                <!--管理员才显示，普通用户只能发布领养日志-->
+                <el-form-item
+                        label="类型"
+                        v-show="(this.userType==1)?true:false"
+                        :label-width="formLabelWidth">
+                    <el-select v-model="newNoticeData.noticeType" placeholder="请选择文章类型">
+                        <el-option label="公告" value="1"></el-option>
+                        <el-option label="领养记录" value="2"></el-option>
+                    </el-select>
+                </el-form-item>
+
+                <el-form-item label="内容" :label-width="formLabelWidth" prop="noticeContext">
+                    <el-input
+                            type="textarea"
+                            placeholder="在此输入内容"
+                            v-model="newNoticeData.noticeContext"
+                            autosize
+                            :maxlength="500"
+                            show-word-limit>
+                    </el-input>
+                </el-form-item>
+            </el-form>
+
+            <div slot="footer" class="dialog-footer">
+                <el-button @click="dialogFormVisible = false">取 消</el-button>
+                <el-button type="primary" @click="saveNotice">保 存</el-button>
+            </div>
+        </el-dialog>
+
+        <!--弹出面板：查看文章-->
+        <el-dialog title="详情" :visible.sync="dialogSeeVisible">
+            <!--文章基本信息-->
+            <el-form :model="lineData">
+                <img v-if="imageUrl" :src="getImage(imageName)" class="avatar" style="margin: 20px auto;"></img>
+
+                <el-descriptions>
+                    <el-descriptions-item label="编号">{{lineData.noticeId}}</el-descriptions-item>
+                    <el-descriptions-item label="发布人">{{lineData.userRealname}}</el-descriptions-item>
+                    <el-descriptions-item label="发布时间">{{lineData.noticeDate}}</el-descriptions-item>
+                    <el-descriptions-item span="2" label="类型">
+                        <el-tag size="small">
+                            {{lineData.noticeType == 1 ? '公告' :'领养记录'}}
+                        </el-tag>
+                    </el-descriptions-item>
+                </el-descriptions>
+            </el-form>
+            <hr>
+            <!--文章内容-->
+            <div style="width: 100%;">
+                <h2 align="center">《{{lineData.notticeTitle}}》</h2>
+                <pre >{{lineData.noticeContext}}</pre>
+            </div>
+
+
+            <div slot="footer" class="dialog-footer">
+                <el-button @click="dialogSeeVisible = false">返 回</el-button>
+            </div>
+        </el-dialog>
+
+    </template>
+</div>
+</body>
+
+<script>
+    new Vue({
+        el: '#app',
+        data() {
+            return {
+                //表单校验：发布公告表单校验
+                rules: {
+                    notticeTitle: [
+                        { required: true, message: '请输入文章标题', trigger: 'blur' },
+                        { min: 5, max: 15, message: '长度在 5 到 15 个字符', trigger: 'blur' }
+                    ],
+                    noticeContext: [
+                        { required: true, message: '请输入文章内容', trigger: 'blur' },
+                        { min: 50,message: '长度不小于 50 个字符', trigger: 'blur' }
+                    ]
+                },
+
+                //数据模型：查看文章面板
+                lineData:{},
+                //数据模型：公告列表
+                tableData: [],
+                //数据模型：查询、分页数据
+                formInline: {
+                    userRealname: '',
+                    noticeType: '',
+
+                    page: 1,
+                    pageSize: 8,
+                    total: 0
+                },
+                //数据模型：新增表单信息
+                newNoticeData: {},
+                imageUrl: '',
+                //图片文件名
+                imageName: '',
+
+                //用户类型
+                userType: '',
+                //操作者信息
+                selfUser: {},
+
+                //发布按钮是否显示:管理员或领养人可以发布
+                showButton: false,
+                //新增面板是否可见
+                dialogFormVisible: false,
+                //文章详情面板是否可见
+                dialogSeeVisible:false,
+
+
+                formLabelWidth: '100px',
+            };
+
+        },
+        //创建好对象时候执行的构造函数
+        created() {
+            //获取页面数据
+            this.getPage();
+            //获取用户数据
+            this.getUserData();
+        },
+        methods: {
+            /*-----------------初始化操作-------------------*/
+            //文章内容显示转换：大于20字符之后的显示为...
+            formatContext(row){
+                //拿到内容
+                let context = row.noticeContext;
+
+                let result = context.substring(0, 20);
+                result = result+"...";
+                return result;
+            },
+            //类型数据展示转换：公告或者领养记录
+            formatType(row){
+                if (row.noticeType == 1) {
+                    return "公告";
+                } else {
+                    return '领养记录';
+                }
+            },
+            //根据公告类别来设置行背景色
+            tableRowClassName({row}) {
+                if (row.noticeType == 2) {
+                    //领养记录
+                    return 'waiting-row';
+                }
+            },
+            //获取操作者信息
+            getUserData() {
+                const _this = this;
+                axios.get("/users").then(
+                    function (response) {
+                        //获取到响应信息
+                        if (response.data.code == 1) {
+                            //响应成功，赋值
+                            _this.selfUser = response.data.data;
+                            //获取用户类型
+                            _this.getUserType();
+                            return;
+                        }
+                        //获取失败则显示提示信息
+                        _this.$message.error(response.data.msg);
+                    },
+                    function (err) {
+                        //请求失败，友好的提示框
+                        _this.$message.error("服务器烦恼，请稍后重试");
+                        //控制台打印信息
+                        console.log(err);
+                    });
+            },
+            //获取用户类型
+            getUserType() {
+                const _this = this;
+                axios.get("/users/type").then(function (resp) {
+                    //设置用户类型
+                    _this.userType = resp.data.data;
+
+                    console.log("看看用户类型：" + _this.userType)
+                    //是管理员、领养人，则可以发布
+                    if (_this.userType == 1 || _this.userType == 2) {
+                        _this.showButton = true;
+                    }
+                })
+            },
+            //表头居中
+            headClass() {
+                return "text-align:center";
+            },
+
+            /*-----------------管理员操作-------------------*/
+            //发布文章>保存按钮
+            saveNotice(){
+                const _this = this;
+                this.newNoticeData.noticeImage = this.imageName;
+                //校验
+                if(this.imageName==''||this.imageName==null){
+                    this.$message.error({
+                        message: '请上传图片',
+                    });
+                    return;
+                }
+
+                //标题
+                if(this.newNoticeData.notticeTitle==null || this.newNoticeData.notticeTitle.length < 5 || this.newNoticeData.notticeTitle.length>15){
+                    console.log("标题不通过");
+                    this.$message.error({
+                        message: '请输入合规的标题',
+                    });
+                    return;
+                }
+
+                //内容
+                if(this.newNoticeData.noticeContext==null || this.newNoticeData.noticeContext.length < 50 || this.newNoticeData.noticeContext.length>500){
+                    console.log("内容不通过");
+                    this.$message.error({
+                        message: '请输入合规的内容',
+                    });
+                    return;
+                }
+
+                console.log("校验通过")
+                //上传
+                axios.post("/notices",this.newNoticeData).then(
+                    function (response) {
+                        //获取到响应信息
+                        console.log(response.data);
+
+                        if (response.data.code == 1) {
+                            //请求成功
+                            _this.$message({
+                                message: '发布成功！',
+                                type: 'success'
+                            });
+                            _this.getPage();
+                        } else {
+                            //请求失败，进行提示
+                            _this.$message.error(response.data.msg);
+                        }
+                    },
+                    function (err){
+                        //请求失败，友好的提示框
+                        _this.$message.error("服务器烦恼，请稍后重试");
+                        //控制台打印信息
+                        console.log(err);
+                    }
+                );
+                this.dialogFormVisible = false;
+            },
+            //发布按钮：领养人也可以发布
+            addNotices() {
+                //清空历史数据
+                this.newNoticeData={};
+                this.imageUrl='';
+                this.imageName='';
+                //显示新增框
+                this.dialogFormVisible = true;
+            },
+            //状态下拉框值被改变
+            changeSelect(){
+                this.getPage();
+            },
+
+            /*-----------------用户操作-------------------*/
+            //查看文章按钮
+            seeNotice(row){
+                //面板数据
+                this.lineData = row;
+                console.log("面板数据："+JSON.stringify(this.lineData))
+
+                this.imageUrl = row.noticeImage;
+                this.imageName = row.noticeImage;
+                //面板展示
+                this.dialogSeeVisible=true;
+            },
+            //回主界面
+            goMain() {
+                //页面跳转
+                window.location.href = '/web/page/main/main.html'
+            },
+            //校验图片
+            onChange(file) {
+                if (file) {
+                    const suffix = file.name.split('.')[1]
+                    const size = file.size / 1024 / 1024 < 2
+                    if (['png', 'jpeg', 'jpg'].indexOf(suffix) < 0) {
+                        this.$message.error('上传图片只支持 png、jpeg、jpg 格式！')
+                        this.$refs.upload.clearFiles()
+                        return false
+                    }
+                    if (!size) {
+                        this.$message.error('上传文件大小不能超过 2MB!')
+                        return false
+                    }
+                    return file
+                }
+            },
+
+            //获取分页数据的请求
+            getPage() {
+                const _this = this;
+                const _windows = window;
+                //发起请求获取页面数据
+                axios.get("/notices/page?page=" + this.formInline.page + "&pageSize=" + this.formInline.pageSize
+                    + "&userRealname=" + this.formInline.userRealname + "&noticeType=" + this.formInline.noticeType).then(
+                    function (response) {
+                        if(response.data.msg=="NoLogin!"){
+                            //没有登录
+                            _windows.location.href = '/web/page/login/login.html';
+                        }
+                        //获取到响应信息
+                        console.log(response.data);
+
+                        if (response.data.code == 1) {
+                            //如果请求成功，展示数据在表格中:数据存入数据模型tableData中
+                            _this.tableData = response.data.data.records;
+                            _this.formInline.total = response.data.data.total;
+
+                            console.log(_this.tableData);
+                        } else {
+                            //请求失败，进行提示
+                            _this.$message.error(response.data.msg);
+                        }
+                    },
+                    function (err) {
+                        //请求失败，友好的提示框
+                        _this.$message.error("服务器烦恼，请稍后重试");
+                        //控制台打印信息
+                        console.log(err);
+                    });
+            },
+            //按照条件进行查询数据
+            onSubmit() {
+                this.getPage();
+            },
+            //修改页面大小
+            handleSizeChange(val) {
+                console.log(`每页 ${val} 条`);
+                this.formInline.pageSize = val;
+                this.getPage();
+            },
+            //修改页码
+            handleCurrentChange(val) {
+                console.log(`当前页: ${val}`);
+                this.formInline.page = val;
+                this.getPage();
+            },
+
+            //获取图片路径
+            getImage(image) {
+                return `/common/download?name=${image}`
+            },
+            //文件上传成功后执行
+            handleAvatarSuccess(res, file) {
+                this.imageUrl = URL.createObjectURL(file.raw);
+                console.log(this.imageUrl);
+                //拿到文件名
+                this.imageName = res.data;
+            },
+        }
+    })
+</script>
+</html>

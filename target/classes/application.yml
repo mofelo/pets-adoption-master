@@ -1,0 +1,51 @@
+server:
+  port: 808
+
+spring:
+  application:
+    name: pets_adoption
+  datasource:
+    druid: #数据库连接池
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      url: jdbc:mysql://localhost:3306/pets_adoption?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true
+      username: root
+      password: 123456
+  cache:
+    type: simple
+    redis:
+      time-to-live: 1800000 #缓存生效时间（单位毫秒）：30分钟
+  redis:
+#    redis地址
+    host: localhost
+    port: 6379
+#    redis密码
+    password:
+    lettuce:
+      pool:
+        max-active: 10
+        max-idle: 10
+        min-idle: 1
+        time-between-eviction-runs: 10s
+  jackson:
+    #不处理空字符
+    default-property-inclusion: non_null
+
+  #项目启动后自动跳转到登录页码
+  auto:
+    openurl: true
+  web:
+    loginurl: http://localhost:808/web/page/login/login.html
+
+mybatis-plus:
+  configuration:
+    #在映射实体或者属性时，将数据库中表名和字段名中的下划线去掉，按照驼峰命名法映射
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: ASSIGN_ID
+  type-aliases-package: com.lurenjia.entity
+
+pets_adoption:
+#  照片存放地址
+  file-path: ./upload/images/

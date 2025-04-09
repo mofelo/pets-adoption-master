@@ -1,0 +1,111 @@
+@import url("https://fonts.googleapis.com/css?family=Open+Sans:400,400i,700");
+
+:root {
+    --backgroundColor: rgba(246, 241, 209);
+    --colorShadeA: rgb(106, 163, 137);
+    --colorShadeB: rgb(121, 186, 156);
+    --colorShadeC: rgb(150, 232, 195);
+    --colorShadeD: rgb(187, 232, 211);
+    --colorShadeE: rgb(205, 255, 232);
+}
+
+/*标题*/
+h1 {
+    text-align: center;
+    font-size: 40px;
+    font-family: "黑体";
+    color: #87613d;
+    margin-bottom: 30px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: "OpenSans", sans-serif;
+    font-size: 1rem;
+    line-height: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0;
+    min-height: 100vh;
+    background: var(--backgroundColor);
+}
+
+/* 模块容器样式 */
+.module-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 30px;
+    margin-top: 20px;
+    width: 90%;
+    max-width: 1200px;
+}
+
+/* 模块卡片样式 */
+.module-card {
+    background: var(--colorShadeE);
+    border: 2px solid var(--colorShadeA);
+    border-radius: 15px;
+    padding: 25px;
+    width: 300px;
+    text-align: center;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.module-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.module-card h2 {
+    color: var(--colorShadeA);
+    margin-top: 0;
+    font-size: 24px;
+}
+
+.module-card p {
+    color: #666;
+    margin-bottom: 20px;
+    min-height: 60px;
+}
+
+/* 模块按钮样式 */
+.module-button {
+    background: var(--colorShadeC) !important;
+    border-color: var(--colorShadeA) !important;
+    color: #fff !important;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+.module-button:hover {
+    background: var(--colorShadeB) !important;
+    transform: translateY(-2px);
+}
+
+.module-button:active {
+    transform: translateY(0);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .module-container {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .module-card {
+        width: 90%;
+        max-width: 400px;
+    }
+}

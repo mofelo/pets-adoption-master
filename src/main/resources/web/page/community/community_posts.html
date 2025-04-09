@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>社区讨论</title>
+    <!--网站图标-->
+    <link rel="shortcut icon" href="../../images/favicon.ico">
+    <!-- 样式 -->
+    <link rel="stylesheet" href="../../css/community.css">
+    <link rel="stylesheet" href="../../element-ui/lib/theme-chalk/index.css">
+    <!-- 引入组件库 -->
+    <script src="../../js/vue.js"></script>
+    <!-- 引入axios库 -->
+    <script src="../../js/axios.min.js"></script>
+    <script src="../../element-ui/lib/index.js"></script>
+</head>
+<body>
+<div id="app">
+    <el-button @click="goCommunity" type="success" plain>返回社区交流</el-button>
+    <h1 style="text-align: center;margin: 20px auto;">社区讨论</h1>
+
+    <!-- 搜索和筛选区域 -->
+    <div class="filter-container">
+        <el-form :inline="true" :model="formInline" class="demo-form-inline">
+            <el-form-item label="帖子类型">
+                <el-select v-model="formInline.postType" placeholder="选择帖子类型" @change="getPostList">
+                    <el-option label="全部" value=""></el-option>
+                    <el-option label="饲养经验" value="1"></el-option>
+                    <el-option label="求助问答" value="2"></el-option>
+                    <el-option label="宠物展示" value="3"></el-option>
+                    <el-option label="宠物行为解读" value="4"></el-option>
+                </el-select>
+            </el-form-item>
+
+            <el-form-item label="用户名">
+                <el-input v-model="formInline.userName" placeholder="发布者用户名"></el-input>
+            </el-form-item>
+
+            <el-form-item>
+                <el-button type="primary" @click="getPostList">查询</el-button>
+                <el-button type="success" @click="showPostForm = true">发布帖子</el-button>
+            </el-form-item>
+        </el-form>
+    </div>
+
+    <!-- 帖子列表 -->
+    <div class="post-list">
+        <el-card v-for="post in postList" :key="post.postId" class="post-card" @click.native="viewPostDetail(post.postId)">
+            <div class="post-header">
+                <span class="post-type-tag" :class="'type-' + post.postType">{{getPostTypeLabel(post.postType)}}</span>
+                <h3 class="post-title">{{post.title}}</h3>
+            </div>
+            <div class="post-content-preview">
+                <p>{{post.content.length > 100 ? post.content.substring(0, 100) + '...' : post.content}}</p>
+            </div>
+            <div class="post-footer">
+                <span class="post-author">{{post.userName}}</span>
+                <span class="post-time">{{formatTime(post.createTime)}}</span>
+                <div class="post-stats">
+                    <span><i class="el-icon-view"></i> {{post.viewCount}}</span>
+                    <span><i class="el-icon-chat-dot-square"></i> {{post.commentCount}}</span>
+                    <span><i class="el-icon-star-on"></i> {{post.likeCount}}</span>
+                </div>
+            </div>
+        </el-card>
+
+        <!-- 没有数据时显示 -->
+        <el-empty v-if="postList.length === 0" description="暂无帖子"></el-empty>
+    </div>
+
+    <!-- 分页 -->
+    <div class="pagination-container">
+        <el-pagination
+            @size-change="handleSizeChange"
+            @current-change="handleCurrentChange"
+            :current-page="formInline.page"
+            :page-sizes="[5, 10, 20, 50]"
+            :page-size="formInline.pageSize"
+            layout="total, sizes, prev, pager, next, jumper"
+            :total="formInline.total">
+        </el-pagination>
+    </div>
+
+    <!-- 发布帖子对话框 -->
+    <el-dialog title="发布帖子" :visible.sync="showPostForm" width="50%">
+        <el-form :model="postForm" label-width="80px">
+            <el-form-item label="帖子类型">
+                <el-select v-model="postForm.postType" placeholder="选择帖子类型">
+                    <el-option label="饲养经验" :value="1"></el-option>
+                    <el-option label="求助问答" :value="2"></el-option>
+                    <el-option label="宠物展示" :value="3"></el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item label="标题">
+                <el-input v-model="postForm.title" placeholder="请输入标题"></el-input>
+            </el-form-item>
+            <el-form-item label="内容">
+                <el-input type="textarea" v-model="postForm.content" :rows="6" placeholder="请输入内容"></el-input>
+            </el-form-item>
+            <el-form-item label="图片">
+                <el-upload
+                    action="/common/upload"
+                    :on-success="handleUploadSuccess"
+                    :before-upload="beforeUpload"
+                    :limit="1"
+                    list-type="picture-card">
+                    <i class="el-icon-plus"></i>
+                </el-upload>
+            </el-form-item>
+        </el-form>
+        <span slot="footer" class="dialog-footer">
+            <el-button @click="showPostForm = false">取 消</el-button>
+            <el-button type="primary" @click="submitPost">发 布</el-button>
+        </span>
+    </el-dialog>
+
+    <!-- 帖子详情对话框 -->
+    <el-dialog :title="currentPost.title" :visible.sync="showPostDetail" width="60%">
+        <div v-if="currentPost.postId" class="post-detail">
+            <div class="post-detail-header">
+                <span class="post-type-tag" :class="'type-' + currentPost.postType">{{getPostTypeLabel(currentPost.postType)}}</span>
+                <span class="post-author">作者: {{currentPost.userName}}</span>
+                <span class="post-time">发布于: {{formatTime(currentPost.createTime)}}</span>
+            </div>
+
+            <div class="post-detail-content">
+                <p>{{currentPost.content}}</p>
+                <div v-if="currentPost.postImage" class="post-image">
+                    <img :src="currentPost.postImage" alt="帖子图片">
+                </div>
+            </div>
+
+            <div class="post-detail-actions">
+                <el-button size="small" :type="currentPost.isLiked ? 'danger' : 'default'" @click="likePost">
+                    <i class="el-icon-star-on"></i> {{currentPost.isLiked ? '已点赞' : '点赞'}} ({{currentPost.likeCount}})
+                </el-button>
+            </div>
+
+            <!-- 评论区 -->
+            <div class="comment-section">
+                <h3>评论 ({{comments.length}})</h3>
+
+                <!-- 发表评论 -->
+                <div class="comment-form">
+                    <el-input
+                        type="textarea"
+                        :rows="2"
+                        placeholder="发表您的评论"
+                        v-model="commentContent">
+                    </el-input>
+                    <el-button type="primary" @click="submitComment" :disabled="!commentContent.trim()">发表评论</el-button>
+                </div>
+
+                <!-- 评论列表 -->
+                <div class="comment-list">
+                    <div v-for="comment in comments" :key="comment.commentId" class="comment-item">
+                        <div class="comment-header">
+                            <span class="comment-author">{{comment.userName}}</span>
+                            <span class="comment-time">{{formatTime(comment.createTime)}}</span>
+                        </div>
+                        <div class="comment-content">{{comment.content}}</div>
+                        <div class="comment-actions">
+                            <el-button type="text" @click="replyToComment(comment)">回复</el-button>
+                        </div>
+
+                        <!-- 子评论 -->
+                        <div v-if="comment.children && comment.children.length > 0" class="child-comments">
+                            <div v-for="childComment in comment.children" :key="childComment.commentId" class="child-comment-item">
+                                <div class="comment-header">
+                                    <span class="comment-author">{{childComment.userName}}</span>
+                                    <span class="comment-time">{{formatTime(childComment.createTime)}}</span>
+                                </div>
+                                <div class="comment-content">
+                                    <span class="reply-to">回复 {{childComment.replyToUserName}}:</span> {{childComment.content}}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 没有评论时显示 -->
+                    <el-empty v-if="comments.length === 0" description="暂无评论" :image-size="100"></el-empty>
+                </div>
+            </div>
+        </div>
+    </el-dialog>
+
+    <!-- 回复评论对话框 -->
+    <el-dialog title="回复评论" :visible.sync="showReplyForm" width="40%">
+        <div v-if="currentComment.commentId" class="reply-form">
+            <p>回复 {{currentComment.userName}} 的评论:</p>
+            <p class="quoted-comment">"{{currentComment.content}}"</p>
+            <el-input
+                type="textarea"
+                :rows="3"
+                placeholder="请输入回复内容"
+                v-model="replyContent">
+            </el-input>
+        </div>
+        <span slot="footer" class="dialog-footer">
+            <el-button @click="showReplyForm = false">取 消</el-button>
+            <el-button type="primary" @click="submitReply" :disabled="!replyContent.trim()">提 交</el-button>
+        </span>
+    </el-dialog>
+</div>
+</body>
+
+<script>
+    new Vue({
+        el: '#app',
+        data() {
+            return {
+                // 查询条件
+                formInline: {
+                    postType: '',
+                    userName: '',
+                    page: 1,
+                    pageSize: 10,
+                    total: 0
+                },
+                // 帖子列表
+                postList: [],
+                // 发布帖子表单
+                showPostForm: false,
+                postForm: {
+                    postType: 1,
+                    title: '',
+                    content: '',
+                    postImage: ''
+                },
+                // 帖子详情
+                showPostDetail: false,
+                currentPost: {},
+                // 评论
+                comments: [],
+                commentContent: '',
+                // 回复评论
+                showReplyForm: false,
+                currentComment: {},
+                replyContent: ''
+            };
+        },
+        created() {
+            // 获取帖子列表
+            this.getPostList();
+        },
+        methods: {
+            //返回社区交流页面
+            goCommunity() {
+                window.location.href = './community.html'
+            },
+
+            // 获取帖子列表
+            getPostList() {
+                const params = {
+                    page: this.formInline.page,
+                    pageSize: this.formInline.pageSize,
+                    userName: this.formInline.userName,
+                    postType: this.formInline.postType
+                };
+
+                axios.get('/community/posts', { params }).then(response => {
+                    if (response.data.code === 1) {
+                        const data = response.data.data;
+                        this.postList = data.records;
+                        this.formInline.total = data.total;
+                    } else {
+                        this.$message.error(response.data.msg || '获取帖子列表失败');
+                    }
+                }).catch(error => {
+                    console.error(error);
+                    this.$message.error('获取帖子列表失败，请稍后重试');
+                });
+            },
+
+            // 处理页码变化
+            handleCurrentChange(page) {
+                this.formInline.page = page;
+                this.getPostList();
+            },
+
+            // 处理每页条数变化
+            handleSizeChange(pageSize) {
+                this.formInline.pageSize = pageSize;
+                this.formInline.page = 1;
+                this.getPostList();
+            },
+
+            // 获取帖子类型标签
+            getPostTypeLabel(type) {
+                const types = {
+                    1: '饲养经验',
+                    2: '求助问答',
+                    3: '宠物展示',
+                    4: '宠物行为解读'
+                };
+                return types[type] || '未知';
+            },
+
+            // 格式化时间
+            formatTime(time) {
+                if (!time) return '';
+                const date = new Date(time);
+                return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+            },
+
+            // 上传图片前的验证
+            beforeUpload(file) {
+                const isImage = file.type.startsWith('image/');
+                const isLt2M = file.size / 1024 / 1024 < 2;
+
+                if (!isImage) {
+                    this.$message.error('只能上传图片文件!');
+                }
+                if (!isLt2M) {
+                    this.$message.error('图片大小不能超过2MB!');
+                }
+
+                return isImage && isLt2M;
+            },
+
+            // 图片上传成功的回调
+            handleUploadSuccess(response, file, fileList) {
+                if (response.code === 1) {
+                    this.postForm.postImage = response.data;
+                    this.$message.success('图片上传成功');
+                } else {
+                    this.$message.error('图片上传失败');
+                }
+            },
+
+            // 提交帖子
+            submitPost() {
+                if (!this.postForm.title) {
+                    this.$message.warning('请输入标题');
+                    return;
+                }
+                if (!this.postForm.content) {
+                    this.$message.warning('请输入内容');
+                    return;
+                }
+
+                axios.post('/community/post', this.postForm).then(response => {
+                    if (response.data.code === 1) {
+                        this.$message.success('发布成功');
+                        this.showPostForm = false;
+                        // 重置表单
+                        this.postForm = {
+                            postType: 1,
+                            title: '',
+                            content: '',
+                            postImage: ''
+                        };
+                        // 刷新帖子列表
+                        this.getPostList();
+                    } else {
+                        this.$message.error(response.data.msg || '发布失败');
+                    }
+                }).catch(error => {
+                    console.error(error);
+                    this.$message.error('发布失败，请稍后重试');
+                });
+            },
+
+            // 查看帖子详情
+            viewPostDetail(postId) {
+                axios.get(`/community/post/${postId}`).then(response => {
+                    if (response.data.code === 1) {
+                        this.currentPost = response.data.data;
+                        this.showPostDetail = true;
+                        // 获取评论
+                        this.getComments(postId);
+                    } else {
+                        this.$message.error(response.data.msg || '获取帖子详情失败');
+                    }
+                }).catch(error => {
+                    console.error(error);
+                    this.$message.error('获取帖子详情失败，请稍后重试');
+                });
+            },
+
+            // 获取评论
+            getComments(postId) {
+                axios.get(`/community/comments/${postId}`).then(response => {
+                    if (response.data.code === 1) {
+                        this.comments = response.data.data;
+                    } else {
+                        this.$message.error(response.data.msg || '获取评论失败');
+                    }
+                }).catch(error => {
+                    console.error(error);
+                    this.$message.error('获取评论失败，请稍后重试');
+                });
+            },
+
+            // 点赞帖子
+            likePost() {
+                const postId = this.currentPost.postId;
+                axios.post(`/community/like/${postId}`).then(response => {
+                    if (response.data.code === 1) {
+                        // 更新点赞状态和数量
+                        this.currentPost.isLiked = !this.currentPost.isLiked;
+                        if (this.currentPost.isLiked) {
+                            this.currentPost.likeCount++;
+                        } else {
+                            this.currentPost.likeCount--;
+                        }
+                        this.$message.success(this.currentPost.isLiked ? '点赞成功' : '取消点赞成功');
+                    } else {
+                        this.$message.error(response.data.msg || '操作失败');
+                    }
+                }).catch(error => {
+                    console.error(error);
+                    this.$message.error('操作失败，请稍后重试');
+                });
+            },
+
+            // 提交评论
+            submitComment() {
+                if (!this.commentContent.trim()) {
+                    return;
+                }
+
+                const comment = {
+                    postId: this.currentPost.postId,
+                    content: this.commentContent,
+                    parentId: 0 // 一级评论
+                };
+
+                axios.post('/community/comment', comment).then(response => {
+                    if (response.data.code === 1) {
+                        this.$message.success('评论成功');
+                        this.commentContent = '';
+                        // 刷新评论列表
+                        this.getComments(this.currentPost.postId);
+                    } else {
+                        this.$message.error(response.data.msg || '评论失败');
+                    }
+                }).catch(error => {
+                    console.error(error);
+                    this.$message.error('评论失败，请稍后重试');
+                });
+            },
+
+            // 回复评论
+            replyToComment(comment) {
+                this.currentComment = comment;
+                this.showReplyForm = true;
+                this.replyContent = '';
+            },
+
+            // 提交回复
+            submitReply() {
+                if (!this.replyContent.trim()) {
+                    return;
+                }
+
+                const reply = {
+                    postId: this.currentPost.postId,
+                    content: this.replyContent,
+                    parentId: this.currentComment.commentId
+                };
+
+                axios.post('/community/comment', reply).then(response => {
+                    if (response.data.code === 1) {
+                        this.$message.success('回复成功');
+                        this.showReplyForm = false;
+                        // 刷新评论列表
+                        this.getComments(this.currentPost.postId);
+                    } else {
+                        this.$message.error(response.data.msg || '回复失败');
+                    }
+                }).catch(error => {
+                    console.error(error);
+                    this.$message.error('回复失败，请稍后重试');
+                });
+            }
+        }
+    })
+</script>
+
+<style>
+/* 社区讨论页面特有样式 */
+.filter-container {
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: var(--colorShadeE);
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.post-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    width: 90%;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.post-card {
+    cursor: pointer;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border-radius: 8px;
+}
+
+.post-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.post-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.post-type-tag {
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-right: 10px;
+    font-size: 12px;
+    color: white;
+}
+
+.post-type-tag.type-1 {
+    background-color: #67C23A; /* 饲养经验 - 绿色 */
+}
+
+.post-type-tag.type-2 {
+    background-color: #E6A23C; /* 求助问答 - 橙色 */
+}
+
+.post-type-tag.type-3 {
+    background-color: #409EFF; /* 宠物展示 - 蓝色 */
+}
+
+.post-type-tag.type-4 {
+    background-color: #F56C6C; /* 宠物行为解读 - 红色 */
+}
+
+.post-title {
+    margin: 0;
+    font-size: 18px;
+    flex-grow: 1;
+}
+
+.post-content-preview {
+    color: #666;
+    margin-bottom: 10px;
+    line-height: 1.5;
+}
+
+.post-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+    color: #999;
+}
+
+.post-author {
+    font-weight: bold;
+}
+
+.post-stats {
+    display: flex;
+    gap: 15px;
+}
+
+.pagination-container {
+    margin-top: 20px;
+    text-align: center;
+}
+
+/* 帖子详情样式 */
+.post-detail {
+    padding: 10px;
+}
+
+.post-detail-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    gap: 15px;
+}
+
+.post-detail-content {
+    margin-bottom: 20px;
+    line-height: 1.6;
+}
+
+.post-image {
+    margin-top: 15px;
+    text-align: center;
+}
+
+.post-image img {
+    max-width: 100%;
+    max-height: 400px;
+    border-radius: 8px;
+}
+
+.post-detail-actions {
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #eee;
+}
+
+/* 评论区样式 */
+.comment-section h3 {
+    margin-bottom: 15px;
+    color: var(--colorShadeA);
+}
+
+.comment-form {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.comment-form .el-textarea {
+    flex-grow: 1;
+}
+
+.comment-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.comment-item {
+    padding: 15px;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+}
+
+.comment-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.comment-author {
+    font-weight: bold;
+    color: var(--colorShadeA);
+}
+
+.comment-time {
+    font-size: 12px;
+    color: #999;
+}
+
+.comment-content {
+    margin-bottom: 8px;
+    line-height: 1.5;
+}
+
+.comment-actions {
+    text-align: right;
+}
+
+.child-comments {
+    margin-top: 15px;
+    margin-left: 20px;
+    padding-left: 15px;
+    border-left: 2px solid #eee;
+}
+
+.child-comment-item {
+    padding: 10px;
+    margin-bottom: 10px;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+}
+
+.reply-to {
+    font-weight: bold;
+    color: #409EFF;
+}
+
+/* 回复表单样式 */
+.reply-form p {
+    margin-bottom: 10px;
+}
+
+.quoted-comment {
+    padding: 10px;
+    background-color: #f5f5f5;
+    border-left: 3px solid var(--colorShadeA);
+    font-style: italic;
+    margin-bottom: 15px;
+    border-radius: 4px;
+}
+</style>
+</html>

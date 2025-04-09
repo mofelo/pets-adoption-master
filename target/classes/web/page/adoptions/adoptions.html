@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>领养管理</title>
+    <!--网站图标-->
+    <link rel="shortcut icon" href="../../images/favicon.ico">
+    <!-- 样式 -->
+    <link rel="stylesheet" href="../../css/adoption.css">
+    <link rel="stylesheet" href="../../element-ui/lib/theme-chalk/index.css">
+    <!-- 引入组件库 -->
+    <script src="../../js/vue.js"></script>
+    <!-- 引入axios库 -->
+    <script src="../../js/axios.min.js"></script>
+    <script src="../../element-ui/lib/index.js"></script>
+</head>
+<body>
+<div id="app">
+    <el-button @click="goMain" type="success" plain>回主页面</el-button>
+    <h1 style="text-align: center;margin: 20px auto;">领养管理</h1>
+    <template>
+        <!--搜索框-->
+        <el-form :inline="true" :model="formInline" class="demo-form-inline">
+            <el-form-item label="宠物昵称">
+                <el-input v-model="formInline.petName" placeholder="用户的姓名"></el-input>
+            </el-form-item>
+
+            <el-form-item label="领养人姓名">
+                <el-input v-model="formInline.userRealname" placeholder="用户的姓名"></el-input>
+            </el-form-item>
+
+            <el-form-item label="领养状态">
+                <el-select v-model="formInline.adoStatus" placeholder="文章的类型"
+                           @change="changeSelect">
+                    <el-option label="全部" value=""></el-option>
+                    <el-option label="处理中" value="2"></el-option>
+                    <el-option label="失败" value="0"></el-option>
+                    <el-option label="成功" value="1"></el-option>
+                </el-select>
+            </el-form-item>
+
+            <el-form-item>
+                <el-button type="primary" @click="onSubmit">查询</el-button>
+            </el-form-item>
+        </el-form>
+
+        <!--数据框-->
+        <el-table
+                :data="tableData"
+                style="width: 100%"
+                :row-class-name="tableRowClassName"
+                :header-cell-style="headClass"
+                :cell-style="headClass"
+                :align="center">
+            <el-table-column
+                    prop="adoId"
+                    label="领养编号">
+            </el-table-column>
+
+            <el-table-column
+                    prop="adoStatus"
+                    :formatter="formatStatus"
+                    label="状态">
+            </el-table-column>
+
+            <el-table-column
+                    prop="pet.petName"
+                    label="宠物昵称">
+            </el-table-column>
+
+            <el-table-column
+                    prop="pet.petId"
+                    label="宠物编号">
+            </el-table-column>
+            <el-table-column
+                    prop="user.userRealname"
+                    label="领养人">
+            </el-table-column>
+
+            <el-table-column
+                    prop="user.userId"
+                    label="领养人编号">
+            </el-table-column>
+
+            <el-table-column
+                    prop="user.userPhone"
+                    label="电话">
+            </el-table-column>
+
+            <el-table-column
+                    prop="user.userAddress"
+                    label="地址"
+                    width="300">
+            </el-table-column>
+
+            <el-table-column
+                    prop="adoDate"
+                    label="领养时间">
+            </el-table-column>
+
+            <el-table-column
+                    label="操作"
+                    width="300">
+                <template slot-scope="scope">
+                    <el-button
+                            size="mini"
+                            v-show="(scope.row.adoStatus==0 || scope.row.adoStatus==1)?false:selfUser.userType==1?true:false"
+                            @click="updataStatus(scope.row,1)">领养成功
+                    </el-button>
+
+                    <el-button
+                            size="mini"
+                            type="danger"
+                            v-show="(scope.row.adoStatus==0 || scope.row.adoStatus==1)?false:selfUser.userType==1?true:false"
+                            @click="updataStatus(scope.row,0)">领养失败
+                    </el-button>
+
+                    <el-button
+                            size="mini"
+                            type="danger"
+                            v-show="(scope.row.user.userId!=selfUser.userId)?false:(scope.row.adoStatus==0 || scope.row.adoStatus==1)?false:true"
+                            @click="cancelAdoption(scope.row)">取消领养
+                    </el-button>
+
+                </template>
+            </el-table-column>
+
+        </el-table>
+
+        <!--分页框-->
+        <div class="block">
+            <el-pagination
+                    @size-change="handleSizeChange"
+                    @current-change="handleCurrentChange"
+                    :current-page=formInline.page
+                    :page-sizes="[8,12,24,36]"
+                    :page-size=formInline.pageSize
+                    layout="total, sizes, prev, pager, next, jumper"
+                    :total=formInline.total>
+            </el-pagination>
+        </div>
+    </template>
+</div>
+</body>
+
+<script>
+    new Vue({
+        el: '#app',
+        data() {
+            return {
+                // 查询条件模型、分页信息，默认第1页、8条数据
+                formInline: {
+                    petName: '',
+                    userRealname: '',
+                    adoStatus:'',
+                    page: 1,
+                    pageSize: 8,
+                    total: 0
+                },
+                //列表数据模型
+                tableData: [],
+                //操作者信息
+                selfUser: {}
+            };
+        },
+        //创建好对象时候执行的构造函数
+        created() {
+            //获取所有的账户信息
+            this.getPage();
+            //获取操作者的信息
+            this.getUserData();
+        },
+        methods: {
+            /*-----------------领养人操作-------------------*/
+            //取消领养
+            cancelAdoption(row){
+                const _this = this;
+
+                //发起请求
+                axios.put("/adoptions/"+row.adoId).then(
+                    function (response) {
+                        //获取到响应信息
+                        console.log("获取到响应：：" + response.data);
+
+                        if (response.data.code == 1) {
+                            //响应成功，赋值
+                            _this.$message({
+                                message: '操作成功！',
+                                type: 'success'
+                            });
+                            //刷新
+                            _this.getPage();
+                            return;
+                        }
+                        //获取失败则显示提示信息
+                        _this.$message.error(response.data.msg);
+                    },
+                    function (err) {
+                        //请求失败，友好的提示框
+                        _this.$message.error("服务器烦恼，请稍后重试");
+                        //控制台打印信息
+                        console.log(err);
+                    });
+            },
+
+
+            /*-----------------管理员操作-------------------*/
+            //修改领养状态：领养成功、失败
+            updataStatus(row,flag) {
+                const _this = this;
+                //领养编号
+                console.log("领养编号：" + row.adoId);
+                //发起请求
+                axios.put("/adoptions/"+row.adoId+"/"+flag).then(
+                    function (response) {
+                        //获取到响应信息
+                        console.log("获取到响应：：" + response.data);
+
+                        if (response.data.code == 1) {
+                            //响应成功，赋值
+                            _this.$message({
+                                message: '操作成功！',
+                                type: 'success'
+                            });
+                            //刷新
+                            _this.getPage();
+                            return;
+                        }
+                        //获取失败则显示提示信息
+                        _this.$message.error(response.data.msg);
+                    },
+                    function (err) {
+                        //请求失败，友好的提示框
+                        _this.$message.error("服务器烦恼，请稍后重试");
+                        //控制台打印信息
+                        console.log(err);
+                    });
+            },
+
+            /*-----------------查询操作-------------------*/
+            //状态下拉框值被改变
+            changeSelect(){
+                this.getPage();
+            },
+            //获取分页数据的请求
+            getPage() {
+                const _this = this;
+                const _windows = window;
+                //第一次来到界面，发起请求获取页面数据
+                axios.get("/adoptions/page?page=" + this.formInline.page + "&pageSize=" + this.formInline.pageSize
+                    + "&userRealname=" + this.formInline.userRealname + "&petName=" + this.formInline.petName
+                    +"&adoptionStatus="+this.formInline.adoStatus).then(
+                    function (response) {
+                        if(response.data.msg=="NoLogin!"){
+                            //没有登录
+                            _windows.location.href = '/web/page/login/login.html';
+                        }
+                        //获取到响应信息
+                        console.log(response.data);
+
+                        if (response.data.code == 1) {
+                            //如果请求成功，展示数据在表格中:数据存入数据模型tableData中
+                            _this.tableData = response.data.data.records;
+                            _this.formInline.total = response.data.data.total;
+                            console.log(_this.tableData);
+                        } else {
+                            //请求失败，进行提示
+                            _this.$message.error(response.data.msg);
+                        }
+                    },
+                    function (err) {
+                        //请求失败，友好的提示框
+                        _this.$message.error("服务器烦恼，请稍后重试");
+                        //控制台打印信息
+                        console.log(err);
+                    });
+            },
+            //按照条件进行查询数据
+            onSubmit() {
+                this.getPage();
+            },
+            //修改页面大小
+            handleSizeChange(val) {
+                console.log(`每页 ${val} 条`);
+                this.formInline.pageSize = val;
+                this.getPage();
+            },
+            //修改页码
+            handleCurrentChange(val) {
+                console.log(`当前页: ${val}`);
+                this.formInline.page = val;
+                this.getPage();
+            },
+
+            /*-----------------初始化操作-------------------*/
+            //获取操作者信息
+            getUserData() {
+                const _this = this;
+
+                axios.get("/users").then(
+                    function (response) {
+                        //获取到响应信息
+                        console.log("获取到操作用户信息：" + response.data);
+
+                        if (response.data.code == 1) {
+                            //响应成功，赋值
+                            _this.selfUser = response.data.data;
+                            return;
+                        }
+                        //获取失败则显示提示信息
+                        _this.$message.error(response.data.msg);
+                    },
+                    function (err) {
+                        //请求失败，友好的提示框
+                        _this.$message.error("服务器烦恼，请稍后重试");
+                        //控制台打印信息
+                        console.log(err);
+                    });
+            },
+            //根据用户的状态来设置行背景色
+            tableRowClassName({row, rowIndex}) {
+                //成功
+                if (row.adoStatus == 1) {
+                    return 'success-row';
+                }
+                //处理者
+                if (row.adoStatus == 2) {
+                    return 'waiting-row';
+                }
+            },
+            //状态数据转换
+            formatStatus(row) {
+                if (row.adoStatus == 0) {
+                    return '失败'
+                }
+                if (row.adoStatus == 1) {
+                    return '成功'
+                }
+                if (row.adoStatus == 2) {
+                    return '处理中'
+                }
+            },
+            //表头居中
+            headClass() {
+                return "text-align:center";
+            },
+
+
+            //回主界面
+            goMain() {
+                //页面跳转
+                window.location.href = '/web/page/main/main.html'
+            },
+        }
+    })
+</script>
+</html>

@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>宠物领养统计</title>
+    <!--网站图标-->
+    <link rel="shortcut icon" href="../../images/favicon.ico">
+    <!-- 样式 -->
+    <link rel="stylesheet" href="../../css/common.css">
+    <link rel="stylesheet" href="../../css/statistics.css">
+    <link rel="stylesheet" href="../../element-ui/lib/theme-chalk/index.css">
+    <!-- 引入组件库 -->
+    <script src="../../js/vue.js"></script>
+    <!-- 引入axios库 -->
+    <script src="../../js/axios.min.js"></script>
+    <script src="../../element-ui/lib/index.js"></script>
+    <!-- 引入ECharts -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+</head>
+
+<body>
+    <div id="statistics_app">
+        <el-button @click="goBack" type="primary" class="back-button">返回主页</el-button>
+        
+        <div class="statistics-header">
+            <h1>宠物领养系统数据统计</h1>
+            <p>实时展示系统中宠物的各项统计数据</p>
+        </div>
+        
+        <div class="chart-container">
+            <div class="chart-box">
+                <div class="chart-title">宠物类型分布</div>
+                <div id="petTypeChart" class="chart"></div>
+            </div>
+            
+            <div class="chart-box">
+                <div class="chart-title">宠物状态分布</div>
+                <div id="petStatusChart" class="chart"></div>
+            </div>
+            
+            <div class="chart-box">
+                <div class="chart-title">宠物性别分布</div>
+                <div id="petSexChart" class="chart"></div>
+            </div>
+            
+            <div class="chart-box">
+                <div class="chart-title">宠物性格分布</div>
+                <div id="petPersonalityChart" class="chart"></div>
+            </div>
+            
+            <div class="chart-box">
+                <div class="chart-title">月度领养趋势</div>
+                <div id="adoptionTrendChart" class="chart"></div>
+            </div>
+            
+            <div class="chart-box">
+                <div class="chart-title">宠物年龄分布</div>
+                <div id="petAgeChart" class="chart"></div>
+            </div>
+        </div>
+    </div>
+</body>
+
+<script>
+    new Vue({
+        el: '#statistics_app',
+        data() {
+            return {
+                petTypeData: [],
+                petStatusData: [],
+                petSexData: [],
+                petPersonalityData: [],
+                adoptionTrendData: [],
+                petAgeData: []
+            };
+        },
+        created() {
+            // 获取统计数据
+            this.fetchStatisticsData();
+        },
+        methods: {
+            // 返回主页
+            goBack() {
+                window.location.href = '../main/main.html';
+            },
+            
+            // 获取统计数据
+            fetchStatisticsData() {
+                const _this = this;
+                axios.get("/pets/statistics").then(function (resp) {
+                    if (resp.data.code === 1) {
+                        const data = resp.data.data;
+                        _this.petTypeData = data.petTypeData;
+                        _this.petStatusData = data.petStatusData;
+                        _this.petSexData = data.petSexData;
+                        _this.petPersonalityData = data.petPersonalityData;
+                        
+                        // 初始化图表
+                        _this.$nextTick(() => {
+                            _this.initPetTypeChart();
+                            _this.initPetStatusChart();
+                            _this.initPetSexChart();
+                            _this.initPetPersonalityChart();
+                            _this.initAdoptionTrendChart();
+                            _this.initPetAgeChart();
+                        });
+                    } else {
+                        _this.$message.error(resp.data.msg || '获取统计数据失败');
+                        // 使用模拟数据初始化图表
+                        _this.initWithMockData();
+                    }
+                }).catch(function (error) {
+                    console.error('获取统计数据出错:', error);
+                    _this.$message.error('获取统计数据出错');
+                    // 使用模拟数据初始化图表
+                    _this.initWithMockData();
+                });
+            },
+            
+            // 使用模拟数据初始化图表（当API未实现时使用）
+            initWithMockData() {
+                this.petTypeData = [
+                    { name: '家猫', value: 35 },
+                    { name: '田园犬', value: 30 },
+                    { name: '金毛', value: 15 },
+                    { name: '哈士奇', value: 10 },
+                    { name: '其他', value: 10 }
+                ];
+                
+                this.petStatusData = [
+                    { name: '待领养', value: 45 },
+                    { name: '已被领养', value: 30 },
+                    { name: '被申领', value: 15 },
+                    { name: '离世', value: 10 }
+                ];
+                
+                this.petSexData = [
+                    { name: '雄性', value: 55 },
+                    { name: '雌性', value: 45 }
+                ];
+                
+                this.petPersonalityData = [
+                    { name: '外向', value: 60 },
+                    { name: '内向', value: 40 }
+                ];
+                
+                // 月度领养趋势模拟数据
+                const months = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+                const adoptionData = [5, 8, 12, 10, 15, 20, 18, 25, 22, 30, 28, 35];
+                this.adoptionTrendData = {
+                    months: months,
+                    data: adoptionData
+                };
+                
+                // 宠物年龄分布模拟数据
+                this.petAgeData = [
+                    { name: '1岁以下', value: 30 },
+                    { name: '1-3岁', value: 45 },
+                    { name: '3-5岁', value: 15 },
+                    { name: '5-8岁', value: 8 },
+                    { name: '8岁以上', value: 2 }
+                ];
+                
+                this.$nextTick(() => {
+                    this.initPetTypeChart();
+                    this.initPetStatusChart();
+                    this.initPetSexChart();
+                    this.initPetPersonalityChart();
+                    this.initAdoptionTrendChart();
+                    this.initPetAgeChart();
+                });
+            },
+            
+            // 初始化宠物类型分布图表
+            initPetTypeChart() {
+                const chartDom = document.getElementById('petTypeChart');
+                const myChart = echarts.init(chartDom);
+                const option = {
+                    tooltip: {
+                        trigger: 'item',
+                        formatter: '{a} <br/>{b}: {c} ({d}%)'
+                    },
+                    legend: {
+                        orient: 'vertical',
+                        left: 10,
+                        data: this.petTypeData.map(item => item.name)
+                    },
+                    series: [
+                        {
+                            name: '宠物类型',
+                            type: 'pie',
+                            radius: ['50%', '70%'],
+                            avoidLabelOverlap: false,
+                            itemStyle: {
+                                borderRadius: 10,
+                                borderColor: '#fff',
+                                borderWidth: 2
+                            },
+                            label: {
+                                show: false,
+                                position: 'center'
+                            },
+                            emphasis: {
+                                label: {
+                                    show: true,
+                                    fontSize: '18',
+                                    fontWeight: 'bold'
+                                }
+                            },
+                            labelLine: {
+                                show: false
+                            },
+                            data: this.petTypeData
+                        }
+                    ]
+                };
+                myChart.setOption(option);
+                window.addEventListener('resize', function() {
+                    myChart.resize();
+                });
+            },
+            
+            // 初始化宠物状态分布图表
+            initPetStatusChart() {
+                const chartDom = document.getElementById('petStatusChart');
+                const myChart = echarts.init(chartDom);
+                const option = {
+                    tooltip: {
+                        trigger: 'item',
+                        formatter: '{a} <br/>{b}: {c} ({d}%)'
+                    },
+                    legend: {
+                        orient: 'vertical',
+                        left: 10,
+                        data: this.petStatusData.map(item => item.name)
+                    },
+                    series: [
+                        {
+                            name: '宠物状态',
+                            type: 'pie',
+                            radius: '50%',
+                            data: this.petStatusData,
+                            emphasis: {
+                                itemStyle: {
+                                    shadowBlur: 10,
+                                    shadowOffsetX: 0,
+                                    shadowColor: 'rgba(0, 0, 0, 0.5)'
+                                }
+                            }
+                        }
+                    ]
+                };
+                myChart.setOption(option);
+                window.addEventListener('resize', function() {
+                    myChart.resize();
+                });
+            },
+            
+            // 初始化宠物性别分布图表
+            initPetSexChart() {
+                const chartDom = document.getElementById('petSexChart');
+                const myChart = echarts.init(chartDom);
+                const option = {
+                    tooltip: {
+                        trigger: 'item',
+                        formatter: '{a} <br/>{b}: {c} ({d}%)'
+                    },
+                    legend: {
+                        orient: 'vertical',
+                        left: 10,
+                        data: this.petSexData.map(item => item.name)
+                    },
+                    series: [
+                        {
+                            name: '宠物性别',
+                            type: 'pie',
+                            radius: '50%',
+                            data: this.petSexData,
+                            emphasis: {
+                                itemStyle: {
+                                    shadowBlur: 10,
+                                    shadowOffsetX: 0,
+                                    shadowColor: 'rgba(0, 0, 0, 0.5)'
+                                }
+                            }
+                        }
+                    ]
+                };
+                myChart.setOption(option);
+                window.addEventListener('resize', function() {
+                    myChart.resize();
+                });
+            },
+            
+            // 初始化宠物性格分布图表
+            initPetPersonalityChart() {
+                const chartDom = document.getElementById('petPersonalityChart');
+                const myChart = echarts.init(chartDom);
+                const option = {
+                    tooltip: {
+                        trigger: 'item',
+                        formatter: '{a} <br/>{b}: {c} ({d}%)'
+                    },
+                    legend: {
+                        orient: 'vertical',
+                        left: 10,
+                        data: this.petPersonalityData.map(item => item.name)
+                    },
+                    series: [
+                        {
+                            name: '宠物性格',
+                            type: 'pie',
+                            radius: ['30%', '50%'],
+                            center: ['50%', '50%'],
+                            roseType: 'area',
+                            data: this.petPersonalityData,
+                            emphasis: {
+                                itemStyle: {
+                                    shadowBlur: 10,
+                                    shadowOffsetX: 0,
+                                    shadowColor: 'rgba(0, 0, 0, 0.5)'
+                                }
+                            }
+                        }
+                    ]
+                };
+                myChart.setOption(option);
+                window.addEventListener('resize', function() {
+                    myChart.resize();
+                });
+            },
+            
+            // 初始化月度领养趋势图表
+            initAdoptionTrendChart() {
+                const chartDom = document.getElementById('adoptionTrendChart');
+                const myChart = echarts.init(chartDom);
+                const option = {
+                    tooltip: {
+                        trigger: 'axis',
+                        axisPointer: {
+                            type: 'shadow'
+                        }
+                    },
+                    grid: {
+                        left: '3%',
+                        right: '4%',
+                        bottom: '3%',
+                        containLabel: true
+                    },
+                    xAxis: [
+                        {
+                            type: 'category',
+                            data: this.adoptionTrendData.months || [],
+                            axisTick: {
+                                alignWithLabel: true
+                            }
+                        }
+                    ],
+                    yAxis: [
+                        {
+                            type: 'value',
+                            name: '领养数量'
+                        }
+                    ],
+                    series: [
+                        {
+                            name: '领养数量',
+                            type: 'bar',
+                            barWidth: '60%',
+                            data: this.adoptionTrendData.data || [],
+                            itemStyle: {
+                                color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                    { offset: 0, color: '#83bff6' },
+                                    { offset: 0.5, color: '#188df0' },
+                                    { offset: 1, color: '#188df0' }
+                                ])
+                            }
+                        }
+                    ]
+                };
+                myChart.setOption(option);
+                window.addEventListener('resize', function() {
+                    myChart.resize();
+                });
+            },
+            
+            // 初始化宠物年龄分布图表
+            initPetAgeChart() {
+                const chartDom = document.getElementById('petAgeChart');
+                const myChart = echarts.init(chartDom);
+                const option = {
+                    tooltip: {
+                        trigger: 'item',
+                        formatter: '{a} <br/>{b}: {c} ({d}%)'
+                    },
+                    legend: {
+                        orient: 'vertical',
+                        left: 10,
+                        data: this.petAgeData.map(item => item.name)
+                    },
+                    series: [
+                        {
+                            name: '宠物年龄',
+                            type: 'pie',
+                            radius: '50%',
+                            center: ['50%', '50%'],
+                            data: this.petAgeData,
+                            emphasis: {
+                                itemStyle: {
+                                    shadowBlur: 10,
+                                    shadowOffsetX: 0,
+                                    shadowColor: 'rgba(0, 0, 0, 0.5)'
+                                }
+                            },
+                            labelLine: {
+                                smooth: 0.2,
+                                length: 10,
+                                length2: 20
+                            },
+                            itemStyle: {
+                                borderRadius: 5
+                            }
+                        }
+                    ]
+                };
+                myChart.setOption(option);
+                window.addEventListener('resize', function() {
+                    myChart.resize();
+                });
+            }
+        }
+    });
+</script>
+
+</html>

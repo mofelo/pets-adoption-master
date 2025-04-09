@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>主页</title>
+    <!--网站图标-->
+    <link rel="shortcut icon" href="../../images/favicon.ico">
+    <!-- 样式 -->
+    <link rel="stylesheet" href="../../css/main.css">
+    <link rel="stylesheet" href="../../element-ui/lib/theme-chalk/index.css">
+    <!-- 引入组件库 -->
+    <script src="../../js/vue.js"></script>
+    <!-- 引入axios库 -->
+    <script src="../../js/axios.min.js"></script>
+    <script src="../../element-ui/lib/index.js"></script>
+</head>
+<body>
+<div>
+    <h1>宠物领养系统·助力流浪宠物回归家庭</h1>
+</div>
+
+<div id="main_html">
+    <button @click="goPets" class="big-button">宠物仓库</button>
+    <button @click="goNotices" class="big-button">公告栏</button>
+    <button @click="goAdoptions" class="big-button">
+        领养管理
+        <!--如果是管理员，且存在未处理的领养申请，则显示红色♥-->
+        <b style="color: red" v-show="(this.userType!=1)?false:(this.count>=1)?true:false">
+            *
+        </b>
+    </button>
+    <button @click="goUsers" class="big-button">账号信息</button>
+    <button @click="goStatistics" class="big-button">统计图表</button>
+    <button @click="goCommunity" class="big-button">社区交流</button>
+    <button @click="goOut" class="big-button">退出</button>
+</div>
+</body>
+
+<script>
+    new Vue({
+        el: '#main_html',
+        data() {
+            return {
+                //用户类型
+                userType: '',
+                //需要操作的领养申请
+                count: '',
+                //异常状态的领养人姓名
+                userNames: []
+            };
+        },
+        created() {
+            //获取用户类型
+            const _this = this;
+            axios.get("/users/type").then(function (resp) {
+                //设置用户类型
+                _this.userType = resp.data.data;
+                //如果是管理员，则提示待处理的领养申请数量
+                _this.getCount();
+                _this.tips_A();
+                console.log("看看用户类型：" + _this.userType)
+            });
+        },
+        methods: {
+            /*-----------------初始化操作-------------------*/
+            //管理员用户登录后进行提示操作：提示存在异常账户的姓名
+            tips_A() {
+                const _this = this;
+
+
+
+                if(this.userType ==1) {
+                    //获取账户异常的领养人信息
+                    axios.get("/adoptions/getAnomalousUser").then(
+                        function (response) {
+                            if (response.data.code == 1) {
+                                //存在账户异常的领养人信息，赋值
+                                _this.userNames = response.data.data;
+
+                                //提示
+                                for (let i = 0; i < (_this.userNames.length); i++) {
+                                    _this.$message({
+                                        showClose: true,
+                                        duration: 0,
+                                        type: 'error',
+                                        message: '领养人 ' + _this.userNames[i] + ' 未按要求发布领养记录，请联系处理！'
+                                    });
+                                }
+                            } else {
+                                //不存在，则不操作
+                                console.log(response.data.msg);
+                            }
+                        },
+                        function (err) {
+                            //控制台打印信息
+                            console.log(err);
+                        }
+                    )
+                }
+            },
+            //管理员用户登录后进行提示操作：提示存在待处理的领养记录数
+            getCount() {
+                const _this = this;
+                const _windows = window;
+                axios.get("/adoptions").then(
+                    function (response) {
+                        if (response.data.msg == "NoLogin!") {
+                            //没有登录
+                            _windows.location.href = '/web/page/login/login.html';
+                        }
+                        _this.count = response.data.data;
+                        console.log("需要处理的申请有：" + response.data.data);
+
+                        if (_this.count > 0 && _this.userType == 1) {
+                            //提示管理员存在领养申请的数量
+                            _this.$message({
+                                type: 'success',
+                                message: '存在' + _this.count + '条领养申请，请及时处理'
+                            });
+                        }
+                    },
+                    function (error) {
+                        //控制台打印信息
+                        console.log(err);
+                    }
+                )
+            },
+
+            /*-----------------其它模块入口-------------------*/
+            //前往宠物仓库
+            goPets() {
+                window.location.href = '/web/page/pets/pets.html'
+            },
+            //前往公告栏
+            goNotices() {
+                window.location.href = '/web/page/notices/notices.html'
+            },
+            //前往账户管理界面
+            goUsers() {
+                //判断用户类型，是管理员则跳转至所有账户管理界面
+                if (this.userType == 1) {
+                    window.location.href = '../users/admin_users.html'
+                } else {
+                    //普通用户则跳转至个人账户管理界面
+                    window.location.href = '../users/self_users.html'
+                }
+            },
+            //前往领养管理界面
+            goAdoptions() {
+                window.location.href = '../adoptions/adoptions.html'
+            },
+            //跳转到统计图表页面
+            goStatistics() {
+                window.location.href = "../statistics/statistics.html";
+            },
+            
+            //跳转到社区交流页面
+            goCommunity() {
+                window.location.href = "../community/community.html";
+            },
+
+            //退出登录
+            goOut() {
+                //发出请求,把用户信息移除session
+                axios.post("/users/logout", {}).then(
+                    function (response) {
+                        console.log(response.data.data);
+                    },
+                    function (err) {
+                        //控制台打印信息
+                        console.log(err);
+                    });
+                window.location.href = '/web/page/login/login.html'
+            }
+        }
+    })
+</script>
+</html>

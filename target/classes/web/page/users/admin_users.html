@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>宠物仓库</title>
+    <!--网站图标-->
+    <link rel="shortcut icon" href="../../images/favicon.ico">
+    <!-- 样式 -->
+    <link rel="stylesheet" href="../../css/admin_users.css">
+    <link rel="stylesheet" href="../../element-ui/lib/theme-chalk/index.css">
+    <!-- 引入组件库 -->
+    <script src="../../js/vue.js"></script>
+    <!-- 引入axios库 -->
+    <script src="../../js/axios.min.js"></script>
+    <script src="../../element-ui/lib/index.js"></script>
+</head>
+<body>
+<div id="app">
+
+
+    <el-button @click="goMain" type="success" plain>回主页面</el-button>
+
+
+    <h1 style="text-align: center;margin: 20px auto;">账户管理</h1>
+    <template>
+        <!--搜索框-->
+        <el-form :inline="true" :model="formInline" class="demo-form-inline">
+            <el-form-item label="姓名">
+                <el-input v-model="formInline.userName" placeholder="用户的姓名"></el-input>
+            </el-form-item>
+            <el-form-item label="状态">
+                <el-select v-model="formInline.userStatus" placeholder="用户的状态"
+                           @change="changeSelect">
+                    <el-option label="全部" value=""></el-option>
+                    <el-option label="正常" value="0"></el-option>
+                    <el-option label="申领中" value="1"></el-option>
+                    <el-option label="异常状态" value="2"></el-option>
+                    <el-option label="暂停使用" value="3"></el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item>
+                <el-button type="primary" @click="onSubmit">查询</el-button>
+            </el-form-item>
+            <el-form-item>
+                <el-button type="primary"
+                           @click="updateSelf">修改自己的信息
+                </el-button>
+            </el-form-item>
+        </el-form>
+
+        <!--数据框-->
+        <el-table
+                :data="tableData"
+                style="width: 100%"
+                :row-class-name="tableRowClassName"
+                :header-cell-style="headClass"
+                :cell-style="headClass"
+                :align="center">
+            <el-table-column
+                    prop="userAccount"
+                    label="账户">
+            </el-table-column>
+
+            <el-table-column
+                    prop="userRealname"
+                    label="姓名">
+            </el-table-column>
+            <el-table-column
+                    prop="userSex"
+                    :formatter="formatSex"
+                    label="性别">
+            </el-table-column>
+
+            <el-table-column
+                    prop="userStatus"
+                    :formatter="formatStatus"
+                    label="状态">
+            </el-table-column>
+
+            <el-table-column
+                    prop="userType"
+                    :formatter="formatType"
+                    label="类型">
+            </el-table-column>
+
+            <el-table-column
+                    prop="userPhone"
+                    label="电话"
+                    width="200">
+            </el-table-column>
+
+            <el-table-column
+                    prop="userAddress"
+                    label="地址"
+                    width="300">
+            </el-table-column>
+
+            <el-table-column
+                    prop="userRegistertime"
+                    label="注册时间">
+            </el-table-column>
+
+            <el-table-column
+                    label="操作"
+                    width="300">
+                <template slot-scope="scope">
+                    <el-button
+                            size="mini"
+                            key="111"
+                            v-show="(scope.row.userType==0)?true:(scope.row.userType==2)?true:false"
+                            @click="updateUser(scope.row)">设为管理员
+                    </el-button>
+                    <el-button
+                            size="mini"
+                            key="111"
+                            v-show="(scope.row.userType==1)?true:false"
+                            @click="updateUser(scope.row)">取消管理员
+                    </el-button>
+                    <el-button
+                            size="mini"
+                            type="danger"
+                            v-show="(scope.row.userStatus!=3)?true:false"
+                            @click="handleDelete(scope.$index, scope.row)">暂停使用
+                    </el-button>
+                    <el-button
+                            size="mini"
+                            type="danger"
+                            v-show="(scope.row.userStatus==3)?true:false"
+                            @click="handleDelete(scope.$index, scope.row)">恢复使用
+                    </el-button>
+                </template>
+            </el-table-column>
+
+        </el-table>
+
+        <!--分页框-->
+        <div class="block">
+            <el-pagination
+                    @size-change="handleSizeChange"
+                    @current-change="handleCurrentChange"
+                    :current-page=formInline.page
+                    :page-sizes="[8,12,24,36]"
+                    :page-size=formInline.pageSize
+                    layout="total, sizes, prev, pager, next, jumper"
+                    :total=formInline.total>
+            </el-pagination>
+        </div>
+    </template>
+</div>
+</body>
+
+<script>
+    new Vue({
+        el: '#app',
+        data() {
+            return {
+                // 查询条件模型
+                formInline: {
+                    userName: '',
+                    userStatus: '',
+                    page: 1,
+                    pageSize: 8,
+                    total: 0
+                },
+                //列表数据模型
+                tableData: [],
+                //操作者信息
+                selfUser:{}
+            };
+        },
+        //创建好对象时候执行的构造函数
+        created() {
+            //获取所有的账户信息
+            this.getPage();
+            //获取操作者的信息
+            this.getUserData();
+        },
+        methods: {
+            //获取操作者信息
+            getUserData() {
+                const _this = this;
+                const _windows = window;
+
+                axios.get("/users").then(
+                    function (response) {
+                        if(response.data.msg=="NoLogin!"){
+                            //没有登录
+                            _windows.location.href = '/web/page/login/login.html';
+                        }
+                        //获取到响应信息
+                        if (response.data.code == 1) {
+                            //响应成功，赋值
+                            _this.selfUser = response.data.data;
+                            return;
+                        }
+                        //获取失败则显示提示信息
+                        _this.$message.error(response.data.msg);
+                    },
+                    function (err) {
+                        //请求失败，友好的提示框
+                        _this.$message.error("服务器烦恼，请稍后重试");
+                        //控制台打印信息
+                        console.log(err);
+                    });
+            },
+
+            //修改自己的信息
+            updateSelf(){
+                window.location.href = '../users/self_users.html'
+            },
+            //冻结账户，恢复使用账户
+            handleDelete(index, row) {
+                console.log("操作的id："+row.userId);
+                console.log(" 当前用户id："+this.selfUser.userId);
+                if(row.userId==this.selfUser.userId){
+                    this.$message.error("不能对自己进行操作");
+                    return;
+                }
+                const _this = this;
+                console.log(index, row);
+                this.$confirm('此操作将修改账户的状态, 是否继续?', '提示', {
+                    confirmButtonText: '确定',
+                    cancelButtonText: '取消',
+                    type: 'warning',
+                    center: true
+                }).then(() => {
+                    //发起请求
+                    axios.put("/users/" + row.userId + "/2").then(
+                        function (response) {
+                            //获取到响应信息
+                            console.log(response.data);
+
+                            if (response.data.code == 1) {
+                                _this.$message({
+                                    message: '修改成功！',
+                                    type: 'success'
+                                });
+                                //刷新页面
+                                _this.getPage();
+                            } else {
+                                //请求失败，进行提示
+                                _this.$message.error(response.data.msg);
+                            }
+                        },
+                        function (err) {
+                            //请求失败，友好的提示框
+                            _this.$message.error("服务器烦恼，请稍后重试");
+                            //控制台打印信息
+                            console.log(err);
+                        });
+                }).catch(() => {
+                    this.$message({
+                        type: 'info',
+                        message: '已取消操作'
+                    });
+                });
+            },
+            //修改用户类型:管理员
+            updateUser(row) {
+                if(row.userId==this.selfUser.userId){
+                    this.$message.error("不能对自己进行操作");
+                    return;
+                }
+                const _this = this;
+                //发起请求
+                axios.put("/users/" + row.userId + "/1").then(
+                    function (response) {
+                        //获取到响应信息
+                        console.log(response.data);
+
+                        if (response.data.code == 1) {
+                            _this.$message({
+                                message: '修改成功！',
+                                type: 'success'
+                            });
+                            //刷新页面
+                            _this.getPage();
+                        } else {
+                            //请求失败，进行提示
+                            _this.$message.error(response.data.msg);
+                        }
+                    },
+                    function (err) {
+                        //请求失败，友好的提示框
+                        _this.$message.error("服务器烦恼，请稍后重试");
+                        //控制台打印信息
+                        console.log(err);
+                    });
+
+            },
+
+            //获取分页数据的请求
+            getPage() {
+                const _this = this;
+                //第一次来到界面，发起请求获取页面数据
+                axios.get("/users/page?page=" + this.formInline.page + "&pageSize=" + this.formInline.pageSize
+                    + "&userRealname=" + this.formInline.userName + "&userStatus=" + this.formInline.userStatus).then(
+                    function (response) {
+                        //获取到响应信息
+                        console.log(response.data);
+
+                        if (response.data.code == 1) {
+                            //如果请求成功，展示数据在表格中:数据存入数据模型tableData中
+                            _this.tableData = response.data.data.records;
+                            _this.formInline.total = response.data.data.total;
+                            console.log(_this.tableData);
+                        } else {
+                            //请求失败，进行提示
+                            _this.$message.error(response.data.msg);
+                        }
+                    },
+                    function (err) {
+                        //请求失败，友好的提示框
+                        _this.$message.error("服务器烦恼，请稍后重试");
+                        //控制台打印信息
+                        console.log(err);
+                    });
+            },
+            //按照条件进行查询数据
+            onSubmit() {
+                this.getPage();
+            },
+            //修改页面大小
+            handleSizeChange(val) {
+                console.log(`每页 ${val} 条`);
+                this.formInline.pageSize = val;
+                this.getPage();
+            },
+            //修改页码
+            handleCurrentChange(val) {
+                console.log(`当前页: ${val}`);
+                this.formInline.page = val;
+                this.getPage();
+            },
+            //状态下拉框值被改变
+            changeSelect(){
+                this.getPage();
+            },
+
+            //根据用户的状态来设置行背景色
+            tableRowClassName({row, rowIndex}) {
+                //申领中
+                if (row.userStatus == 1) {
+                    return 'waiting-row';
+                }
+                //状态异常
+                if (row.userStatus == 2) {
+                    return 'died-row';
+                }
+                //暂停使用
+                if (row.userStatus == 3) {
+                    return 'warning-row';
+                }
+            },
+            //表头居中
+            headClass() {
+                return "text-align:center";
+            },
+
+            //状态数据转换
+            formatStatus(row) {
+                if (row.userStatus == 0) {
+                    return '正常'
+                }
+                if (row.userStatus == 1) {
+                    return '申领中'
+                }
+                if (row.userStatus == 2) {
+                    return '异常'
+                }
+                if (row.userStatus == 3) {
+                    return '暂停使用'
+                }
+            },
+            //性别数据转换
+            formatSex(row) {
+                if (row.userSex == 1) {
+                    return "男";
+                } else if (row.userSex == 0) {
+                    return '女';
+                } else {
+                    return '未设置';
+                }
+            },
+            //类型转换：
+            formatType(row) {
+                if (row.userType == 0) {
+                    return "普通用户"
+                } else if (row.userType == 1) {
+                    return "管理员"
+                } else if (row.userType == 2) {
+                    return "领养人"
+                }
+            },
+            //性格转换
+            formatPersonality(row) {
+                if (row.petPersonality == 1) {
+                    return "外向";
+                } else {
+                    return "内向";
+                }
+            },
+
+            //回主界面
+            goMain() {
+                //页面跳转
+                window.location.href = '/web/page/main/main.html'
+            }
+        }
+    })
+</script>
+</html>

@@ -1,0 +1,9 @@
+#生产环境
+spring:
+  datasource:
+    druid:
+      # mysal密码
+      password:
+pets_adoption:
+  #  照片存放地址
+  file-path: /soft/webapp/web_pets_adoption/images/

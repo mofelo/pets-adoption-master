@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>宠物行为解读</title>
+    <!--网站图标-->
+    <link rel="shortcut icon" href="../../images/favicon.ico">
+    <!-- 样式 -->
+    <link rel="stylesheet" href="../../css/community.css">
+    <link rel="stylesheet" href="../../element-ui/lib/theme-chalk/index.css">
+    <!-- 引入组件库 -->
+    <script src="../../js/vue.js"></script>
+    <!-- 引入axios库 -->
+    <script src="../../js/axios.min.js"></script>
+    <script src="../../element-ui/lib/index.js"></script>
+</head>
+<body>
+<div id="app">
+    <el-button @click="goCommunity" type="success" plain>返回社区交流</el-button>
+    <h1 style="text-align: center;margin: 20px auto;">宠物行为解读</h1>
+
+    <!-- 宠物类型选择 -->
+    <div class="filter-container">
+        <el-select v-model="petType" placeholder="选择宠物类型" @change="filterBehaviors">
+            <el-option label="全部" value=""></el-option>
+            <el-option label="猫咪" value="cat"></el-option>
+            <el-option label="狗狗" value="dog"></el-option>
+            <el-option label="小型宠物" value="small"></el-option>
+        </el-select>
+
+        <el-input
+            placeholder="搜索行为关键词"
+            v-model="searchKeyword"
+            class="search-input"
+            @input="filterBehaviors">
+        </el-input>
+
+        <el-button type="primary" @click="showPostForm = true">提问宠物行为</el-button>
+    </div>
+
+    <!-- 行为解读列表 -->
+    <div class="behavior-list">
+        <el-card v-for="behavior in filteredBehaviors" :key="behavior.id" class="behavior-card">
+            <div slot="header" class="behavior-header">
+                <span class="pet-type-tag" :class="behavior.petType">{{getPetTypeLabel(behavior.petType)}}</span>
+                <h3>{{behavior.title}}</h3>
+            </div>
+            <div class="behavior-content">
+                <p>{{behavior.description}}</p>
+                <div class="behavior-explanation">
+                    <h4>行为解读：</h4>
+                    <p>{{behavior.explanation}}</p>
+                </div>
+                <div class="behavior-suggestion" v-if="behavior.suggestion">
+                    <h4>建议：</h4>
+                    <p>{{behavior.suggestion}}</p>
+                </div>
+            </div>
+        </el-card>
+
+        <!-- 没有数据时显示 -->
+        <el-empty v-if="filteredBehaviors.length === 0" description="暂无相关行为解读"></el-empty>
+    </div>
+
+    <!-- 提问表单对话框 -->
+    <el-dialog title="提问宠物行为" :visible.sync="showPostForm" width="50%">
+        <el-form :model="postForm" label-width="80px">
+            <el-form-item label="宠物类型">
+                <el-select v-model="postForm.petType" placeholder="选择宠物类型">
+                    <el-option label="猫咪" value="cat"></el-option>
+                    <el-option label="狗狗" value="dog"></el-option>
+                    <el-option label="小型宠物" value="small"></el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item label="标题">
+                <el-input v-model="postForm.title" placeholder="简短描述宠物行为"></el-input>
+            </el-form-item>
+            <el-form-item label="详细描述">
+                <el-input type="textarea" v-model="postForm.content" :rows="5" placeholder="详细描述宠物的行为表现，包括环境、频率等信息"></el-input>
+            </el-form-item>
+            <el-form-item label="图片">
+                <el-upload
+                    action="/common/upload"
+                    :on-success="handleUploadSuccess"
+                    :before-upload="beforeUpload"
+                    :limit="1"
+                    list-type="picture-card">
+                    <i class="el-icon-plus"></i>
+                </el-upload>
+            </el-form-item>
+        </el-form>
+        <span slot="footer" class="dialog-footer">
+            <el-button @click="showPostForm = false">取 消</el-button>
+            <el-button type="primary" @click="submitPost">发 布</el-button>
+        </span>
+    </el-dialog>
+</div>
+</body>
+
+<script>
+    new Vue({
+        el: '#app',
+        data() {
+            return {
+                petType: '',
+                searchKeyword: '',
+                showPostForm: false,
+                postForm: {
+                    petType: '',
+                    title: '',
+                    content: '',
+                    postImage: '',
+                    postType: 4 // 4表示宠物行为解读类型
+                },
+                // 预设的行为解读数据
+                behaviors: [
+                    {
+                        id: 1,
+                        petType: 'cat',
+                        title: '猫咪不停地舔自己',
+                        description: '猫咪频繁地舔自己的身体，有时甚至会舔到掉毛。',
+                        explanation: '猫咪舔自己是正常的清洁行为，但过度舔舐可能表示皮肤问题、过敏、压力或焦虑。',
+                        suggestion: '观察是否有皮肤问题，如果持续过度舔舐，建议咨询兽医。可以通过增加互动游戏来减轻猫咪的压力。'
+                    },
+                    {
+                        id: 2,
+                        petType: 'dog',
+                        title: '狗狗追咬自己的尾巴',
+                        description: '狗狗不停地转圈追逐自己的尾巴，有时还会咬尾巴。',
+                        explanation: '偶尔追尾巴可能只是玩耍，但频繁这样做可能表示无聊、焦虑、寄生虫感染或强迫症行为。',
+                        suggestion: '增加狗狗的运动量和精神刺激，检查尾巴是否有伤口或寄生虫。如果行为持续，建议咨询兽医或动物行为专家。'
+                    },
+                    {
+                        id: 3,
+                        petType: 'cat',
+                        title: '猫咪踩奶',
+                        description: '猫咪用前爪交替按压柔软物体，如毯子或主人的腿，同时发出呼噜声。',
+                        explanation: '这是猫咪幼年时期吸奶的本能行为，表示猫咪感到舒适和安全。成年猫保留这种行为是正常的。',
+                        suggestion: '这是正常且健康的行为，不需要干预。可以为猫咪提供柔软的毯子或专用的踩奶垫。'
+                    },
+                    {
+                        id: 4,
+                        petType: 'dog',
+                        title: '狗狗吃草',
+                        description: '狗狗在散步时会主动寻找并吃一些草。',
+                        explanation: '狗狗吃草可能是为了补充纤维素、缓解胃部不适或单纯因为喜欢草的味道。适量吃草通常是无害的。',
+                        suggestion: '确保狗狗吃的草没有被农药或化学物质污染。如果狗狗频繁吃草并伴随呕吐，应咨询兽医。'
+                    },
+                    {
+                        id: 5,
+                        petType: 'small',
+                        title: '仓鼠囤积食物',
+                        description: '仓鼠将大量食物塞在腮帮子里，然后藏在笼子的某个角落。',
+                        explanation: '这是仓鼠的天性，在野外它们需要囤积食物以备不时之需。这种行为表明仓鼠感到安全，能够表现自然行为。',
+                        suggestion: '提供适当的囤食区域，如小屋或隐蔽处。定期检查囤积的食物，移除可能发霉的食物以防止健康问题。'
+                    },
+                    {
+                        id: 6,
+                        petType: 'cat',
+                        title: '猫咪突然狂奔',
+                        description: '猫咪突然像发疯一样在房间里快速奔跑，可能会上蹿下跳，然后突然停下来好像什么都没发生。',
+                        explanation: '这被称为"疯狂半小时"，是猫咪释放能量的方式，特别是室内猫。这是正常的行为，表明猫咪健康有活力。',
+                        suggestion: '提供足够的玩具和攀爬空间让猫咪释放能量。每天安排固定的互动游戏时间，帮助猫咪消耗多余能量。'
+                    }
+                ],
+                filteredBehaviors: []
+            };
+        },
+        created() {
+            // 初始化显示所有行为
+            this.filteredBehaviors = this.behaviors;
+        },
+        methods: {
+            //返回社区交流页面
+            goCommunity() {
+                window.location.href = './community.html'
+            },
+
+            // 根据宠物类型和搜索关键词筛选行为
+            filterBehaviors() {
+                if (!this.petType && !this.searchKeyword) {
+                    this.filteredBehaviors = this.behaviors;
+                    return;
+                }
+
+                this.filteredBehaviors = this.behaviors.filter(behavior => {
+                    const matchType = !this.petType || behavior.petType === this.petType;
+                    const matchKeyword = !this.searchKeyword ||
+                        behavior.title.includes(this.searchKeyword) ||
+                        behavior.description.includes(this.searchKeyword) ||
+                        behavior.explanation.includes(this.searchKeyword);
+
+                    return matchType && matchKeyword;
+                });
+            },
+
+            // 获取宠物类型标签文本
+            getPetTypeLabel(type) {
+                const types = {
+                    'cat': '猫咪',
+                    'dog': '狗狗',
+                    'small': '小型宠物'
+                };
+                return types[type] || '未知';
+            },
+
+            // 上传图片前的验证
+            beforeUpload(file) {
+                const isImage = file.type.startsWith('image/');
+                const isLt2M = file.size / 1024 / 1024 < 2;
+
+                if (!isImage) {
+                    this.$message.error('只能上传图片文件!');
+                }
+                if (!isLt2M) {
+                    this.$message.error('图片大小不能超过2MB!');
+                }
+
+                return isImage && isLt2M;
+            },
+
+            // 图片上传成功的回调
+            handleUploadSuccess(response, file, fileList) {
+                if (response.code === 1) {
+                    this.postForm.postImage = response.data;
+                    this.$message.success('图片上传成功');
+                } else {
+                    this.$message.error('图片上传失败');
+                }
+            },
+
+            // 提交帖子
+            submitPost() {
+                if (!this.postForm.petType) {
+                    this.$message.warning('请选择宠物类型');
+                    return;
+                }
+                if (!this.postForm.title) {
+                    this.$message.warning('请输入标题');
+                    return;
+                }
+                if (!this.postForm.content) {
+                    this.$message.warning('请输入详细描述');
+                    return;
+                }
+
+                // 构建要提交的帖子对象
+                const post = {
+                    title: this.postForm.title,
+                    content: this.postForm.content,
+                    postImage: this.postForm.postImage,
+                    postType: this.postForm.postType
+                };
+
+                // 发送请求到后端
+                axios.post('/community/posts', post).then(response => {
+                    if (response.data.code === 1) {
+                        this.$message.success('发布成功');
+                        this.showPostForm = false;
+                        // 重置表单
+                        this.postForm = {
+                            petType: '',
+                            title: '',
+                            content: '',
+                            postImage: '',
+                            postType: 4
+                        };
+                    } else {
+                        this.$message.error(response.data.msg || '发布失败');
+                    }
+                }).catch(error => {
+                    console.error(error);
+                    this.$message.error('发布失败，请稍后重试');
+                });
+            }
+        }
+    })
+</script>
+
+<style>
+/* 宠物行为解读页面特有样式 */
+.filter-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
+    gap: 15px;
+}
+
+.search-input {
+    width: 300px;
+}
+
+.behavior-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 90%;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.behavior-card {
+    border-radius: 8px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.behavior-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+}
+
+.behavior-header {
+    display: flex;
+    align-items: center;
+}
+
+.pet-type-tag {
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-right: 10px;
+    font-size: 12px;
+    color: white;
+}
+
+.pet-type-tag.cat {
+    background-color: #ff9800;
+}
+
+.pet-type-tag.dog {
+    background-color: #2196f3;
+}
+
+.pet-type-tag.small {
+    background-color: #4caf50;
+}
+
+.behavior-content {
+    padding: 10px 0;
+}
+
+.behavior-explanation, .behavior-suggestion {
+    background-color: rgba(0, 0, 0, 0.03);
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 10px;
+}
+
+.behavior-explanation h4, .behavior-suggestion h4 {
+    margin-top: 0;
+    color: var(--colorShadeA);
+}
+</style>
+</html>

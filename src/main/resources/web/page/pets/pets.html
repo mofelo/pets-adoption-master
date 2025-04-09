@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>宠物仓库</title>
+    <!--网站图标-->
+    <link rel="shortcut icon" href="../../images/favicon.ico">
+    <!-- 样式 -->
+    <link rel="stylesheet" href="../../css/pets.css">
+    <link rel="stylesheet" href="../../element-ui/lib/theme-chalk/index.css">
+    <!-- 引入组件库 -->
+    <script src="../../js/vue.js"></script>
+    <!-- 引入axios库 -->
+    <script src="../../js/axios.min.js"></script>
+    <script src="../../element-ui/lib/index.js"></script>
+</head>
+<body>
+<div id="app">
+
+
+    <el-button @click="goMain" type="success" plain>回主页面</el-button>
+
+    <h1 style="text-align: center;margin: 20px auto;">宠物仓库</h1>
+
+
+    <template>
+        <!--搜索框-->
+        <el-form :inline="true" :model="formInline" class="demo-form-inline">
+            <el-form-item label="昵称">
+                <el-input v-model="formInline.petName" placeholder="宠物的昵称"></el-input>
+            </el-form-item>
+            <el-form-item label="状态">
+                <el-select
+                        v-model="formInline.petStatus"
+                        placeholder="宠物的状态"
+                        @change="changeSelect"
+                >
+                    <el-option label="全部" value=""></el-option>
+                    <el-option label="待领养" value="0"></el-option>
+                    <el-option label="被领养" value="1"></el-option>
+                    <el-option label="被申领" value="2"></el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item>
+                <el-button type="primary" @click="onSubmit">查询</el-button>
+            </el-form-item>
+            <el-form-item>
+                <el-button type="primary"
+                           v-show="showButton"
+                           @click="addPet">录入宠物信息
+                </el-button>
+            </el-form-item>
+        </el-form>
+
+        <!--数据框-->
+        <el-table
+                :data="tableData"
+                style="width: 100%"
+                :row-class-name="tableRowClassName"
+                :header-cell-style="headClass"
+                :cell-style="headClass"
+                :align="center">
+            <el-table-column
+                    prop="petId"
+                    label="编号">
+            </el-table-column>
+
+            <el-table-column
+                    prop="image"
+                    label="图片"
+                    align="center"
+            >
+                <template slot-scope="{ row }">
+                    <el-image style="width: auto; height: 40px; border:none;cursor: pointer;"
+                              :src="getImage(row.petImage)">
+                        <div slot="error" class="image-slot">
+                            <!--图片加载失败之后显示的图片-->
+                            <img src="../../images/logo.jpg" style="width: auto; height: 40px; border:none;">
+                        </div>
+                    </el-image>
+                </template>
+            </el-table-column>
+
+            <el-table-column
+                    prop="petName"
+                    label="昵称">
+            </el-table-column>
+            <el-table-column
+                    prop="petSex"
+                    :formatter="formatSex"
+                    label="性别">
+            </el-table-column>
+            <el-table-column
+                    prop="petPersonality"
+                    :formatter="formatPersonality"
+                    label="性格">
+            </el-table-column>
+
+            <el-table-column
+                    prop="petAge"
+                    :formatter="formatAge"
+                    label="年龄">
+            </el-table-column>
+            <el-table-column
+                    prop="petIndata"
+                    label="入园时间">
+            </el-table-column>
+
+            <el-table-column
+                    prop="petStatus"
+                    :formatter="formatStatus"
+                    label="状态">
+            </el-table-column>
+
+            <el-table-column
+                    label="操作"
+                    width="300">
+                <template slot-scope="scope">
+                    <el-button
+                            v-show="showButton"
+                            size="mini"
+                            key="111"
+                            @click="updatePet(scope.row)">编辑
+                    </el-button>
+                    <el-button
+                            v-show="showButton"
+                            size="mini"
+                            type="danger"
+                            @click="handleDelete(scope.$index, scope.row)">删除
+                    </el-button>
+                    <el-button
+                            size="mini"
+                            v-show="(scope.row.petStatus==0)?true:false"
+                            key="111"
+                            @click="requestPte(scope.row)">申领
+                    </el-button>
+                </template>
+            </el-table-column>
+
+        </el-table>
+
+        <!--分页框-->
+        <div class="block">
+            <el-pagination
+                    @size-change="handleSizeChange"
+                    @current-change="handleCurrentChange"
+                    :current-page=formInline.page
+                    :page-sizes="[8,12,24,36]"
+                    :page-size=formInline.pageSize
+                    layout="total, sizes, prev, pager, next, jumper"
+                    :total=formInline.total>
+            </el-pagination>
+        </div>
+
+        <!--弹出面板：新增，修改宠物信息-->
+        <el-dialog :title="getTitle()" :visible.sync="dialogFormVisible">
+            <el-form :model="formPet" :rules="rules" ref="formPet" hide-required-asterisk="true">
+
+                <el-form-item label="图片" :label-width="formLabelWidth" style="width: 110px;">
+                    <el-upload class="avatar-uploader"
+                               action="/common/upload"
+                               :show-file-list="false"
+                               :on-success="handleAvatarSuccess"
+                               :on-change="onChange">
+                        <img v-if="imageUrl" :src="getImage(imageName)" class="avatar"></img>
+                        <i v-else class="el-icon-plus avatar-uploader-icon"></i>
+                    </el-upload>
+                </el-form-item>
+
+                <el-form-item label="昵称" :label-width="formLabelWidth" style="width: 300px" prop="petName">
+                    <el-input v-model="formPet.petName" autocomplete="off"></el-input>
+                </el-form-item>
+
+                <el-form-item label="品种" :label-width="formLabelWidth" style="width: 300px" prop="petType">
+                    <el-input v-model="formPet.petType" autocomplete="off"></el-input>
+                </el-form-item>
+
+                <el-form-item label="性别" :label-width="formLabelWidth" prop="petSex">
+                    <el-select v-model="formPet.petSex" placeholder="请选择宠物性别">
+                        <el-option
+                            v-for="item in options1"
+                            :key="item.value"
+                            :label="item.label"
+                            :value="item.value"></el-option>
+                    </el-select>
+                </el-form-item>
+
+                <el-form-item label="状态" :label-width="formLabelWidth" prop="petStatus">
+                    <el-select v-model="formPet.petStatus" placeholder="请选择宠物的状态">
+                        <el-option label="待领养" value="0"></el-option>
+                        <el-option label="去世" value="3"></el-option>
+                    </el-select>
+                </el-form-item>
+
+                <el-form-item label="性格" :label-width="formLabelWidth" prop="petPersonality">
+                    <el-select v-model="formPet.petPersonality" placeholder="请选择宠物性格">
+                        <el-option label="内向" value="0"></el-option>
+                        <el-option label="外向" value="1"></el-option>
+                    </el-select>
+                </el-form-item>
+
+                <el-form-item label="生日" :label-width="formLabelWidth" prop="petAge">
+                    <div class="block">
+                        <el-date-picker
+                                v-model="formPet.petAge"
+                                type="date"
+                                placeholder="宠物生日">
+                        </el-date-picker>
+                    </div>
+                </el-form-item>
+
+                <el-form-item label="简介" :label-width="formLabelWidth" prop="petIntroduction">
+                    <el-input
+                            type="textarea"
+                            autosize
+                            placeholder="简要介绍一下宠物吧"
+                            v-model="formPet.petIntroduction"
+                            :maxlength="500"
+                            show-word-limit>
+                    </el-input>
+                </el-form-item>
+            </el-form>
+
+            <div slot="footer" class="dialog-footer">
+                <el-button @click="dialogFormVisible = false">取 消</el-button>
+                <el-button type="primary" @click="savePet">保 存</el-button>
+            </div>
+        </el-dialog>
+
+        <!--弹出面板：申领-->
+        <el-dialog title="宠物详情|领养申请" :visible.sync="requestPetVisible">
+            <!--绑定数据-->
+            <el-form :model="requestData">
+                <img v-if="imageUrl" :src="getImage(imageName)" class="avatar" style="margin: 20px auto;"></img>
+                <!--宠物详细信息-->
+                <el-descriptions>
+                    <el-descriptions-item label="编号">{{requestData.petId}}</el-descriptions-item>
+                    <el-descriptions-item label="昵称">{{requestData.petName}}</el-descriptions-item>
+                    <el-descriptions-item label="性别">{{requestData.petSex == 1 ? '雄' : '雌'}}</el-descriptions-item>
+                    <el-descriptions-item label="品种">{{requestData.petType}}</el-descriptions-item>
+                    <el-descriptions-item label="性格">{{requestData.petPersonality == 0 ? '内向' : '外向'}}
+                    </el-descriptions-item>
+                    <el-descriptions-item label="生日">{{requestData.petAge}}</el-descriptions-item>
+                    <el-descriptions-item label="入园时间">{{requestData.petIndata}}</el-descriptions-item>
+                    <el-descriptions-item span="2" label="状态">
+                        <el-tag size="small">
+                            {{requestData.petStatus == 0 ? '待领养' : (requestData.petStatus == 1 ? '已被领养' : (requestData.petStatus == 2 ? '被申领' : '去世'))}}
+                        </el-tag>
+                    </el-descriptions-item>
+                    <el-descriptions-item label="简介">{{requestData.petIntroduction}}</el-descriptions-item>
+                </el-descriptions>
+            </el-form>
+
+            <hr>
+
+            <!--领养需知-->
+            <h2>领养需知</h2>
+            1、不能让宠物挨饿或受到虐待。<br>
+            2、宠物发生疾病需要及时医治。<br>
+            3、领养成功一年内，每三个月要上传一篇领养日志，日志包括和宠物的合照以及文字。<br><br><br>
+            我已知悉领养规则，且保证遵守
+            <el-switch
+                    v-model="adptionDataAgree"
+                    active-color="#13ce66"
+                    inactive-color="#ff4949">
+            </el-switch>
+            <hr>
+            <h2>请选择来站时间 :</h2>
+            <el-date-picker
+                    v-model="adoptionTime"
+                    type="date"
+                    placeholder="来站时间">
+            </el-date-picker>
+            <br>
+
+            <div slot="footer" class="dialog-footer">
+                <el-button @click="requestPetVisible = false">取 消</el-button>
+                <el-button type="primary" @click="requestPet()">申 领</el-button>
+            </div>
+        </el-dialog>
+
+    </template>
+</div>
+</body>
+
+<script>
+    new Vue({
+        el: '#app',
+        data() {
+            return {
+                /*---------------账户数据------------------*/
+                //操作者账户数据
+                selfUser:{},
+                //操作者账户类型
+                userType: '',
+                /*---------------查询、分页数据------------------*/
+                //查询条件、分页数据模型
+                formInline: {
+                    petName: '',
+                    petStatus: '',
+                    page: 1,
+                    pageSize: 8,
+                    total: 0
+                },
+                /*---------------宠物列表数据------------------*/
+                //宠物列表数据模型
+                tableData: [],
+                //删除、编辑、录入按钮是否展示：,false为不展示
+                showButton: false,
+                /*---------------新增、修改面板数据------------------*/
+                //下拉框宠物性别
+                options1:[{
+                    value:"1",
+                    label:"雄"
+                    },{
+                    value:"0",
+                    label:"雌"}],
+                //图片url
+                imageUrl: '',
+                //图片文件名
+                imageName: '',
+                //面板的标题名称
+                dialogTitle: '',
+                //标志,1为新增，0为修改
+                addUpdate: 1,
+                //表单模型
+                formPet: {
+                    petId: '',
+                    petName: '',
+                    petType: '',
+                    petSex: '',
+                    petPersonality: '',
+                    petAge: '',
+                    petIntroduction: '',
+                    petImage: '',
+                    petStatus: ''
+                },
+                //左内距
+                formLabelWidth: '100px',
+                //新增、修改面板是否可见
+                dialogFormVisible: false,
+                /*---------------申领面板数据------------------*/
+                //申领面板数据模型
+                requestData: {},
+                //是否同意领养规则
+                adptionDataAgree: false,
+                //领养宠物去店铺时间
+                adoptionTime: '',
+                //申领面板是否可见
+                requestPetVisible: false,
+                /*---------------表单校验数据------------------*/
+                rules: {
+                    petName: [
+                        { required: true, message: '请输入宠物昵称', trigger: 'blur' },
+                        { min: 2, max: 15, message: '长度在 2 到 15 个字符', trigger: 'blur' }
+                    ],
+                    petType: [
+                        { required: true, message: '请输入宠物品种', trigger: 'blur' },
+                        { min: 1, max: 15, message: '长度在 1 到 15 个字符', trigger: 'blur' }
+                    ],
+                    petSex: [
+                        { required: true, message: '请设置宠物性别', trigger: 'change' }
+                    ],
+                    petStatus: [
+                        { required: true, message: '请设置宠物状态', trigger: 'change' }
+                    ],
+                    petPersonality: [
+                        { required: true, message: '请设置宠物性格', trigger: 'change' }
+                    ],
+                    petAge: [
+                        { type: 'date', required: true, message: '请设置宠物生日', trigger: 'change' }
+                    ],
+                    petIntroduction: [
+                        { required: true, message: '请填写宠物简介', trigger: 'blur' }
+                    ]
+                }
+            };
+
+        },
+        //创建好对象时候执行的构造函数
+        created() {
+            //获取页面数据
+            this.getPage();
+            //获取操作者数据
+            this.getUserData();
+        },
+        methods: {
+            /*---------------初始化操作------------------*/
+            //获取操作者类型，是管理员则设置操作按钮可见
+            getUserType() {
+                const _this = this;
+                axios.get("/users/type").then(function (resp) {
+                    //设置用户类型
+                    _this.userType = resp.data.data;
+                    console.log("看看用户类型：" + _this.userType)
+                    //是管理员则按钮可见
+                    if (_this.userType == 1) {
+                        _this.showButton = true;
+                    }
+                })
+            },
+            //获取操作者信息
+            getUserData() {
+                const _this = this;
+                axios.get("/users").then(
+                    function (response) {
+                        //获取到响应信息
+                        if (response.data.code == 1) {
+                            //响应成功，赋值
+                            _this.selfUser = response.data.data;
+                            return;
+                        }
+                        //获取失败则显示提示信息
+                        _this.$message.error(response.data.msg);
+                    },
+                    function (err) {
+                        //请求失败，友好的提示框
+                        _this.$message.error("服务器烦恼，请稍后重试");
+                        //控制台打印信息
+                        console.log(err);
+                    });
+            },
+
+            /*---------------查询、页码变化操作------------------*/
+            //状态下拉框值被改变
+            changeSelect(){
+                this.getPage();
+            },
+            //按照条件进行查询数据
+            onSubmit() {
+                this.getPage();
+            },
+            //获取分页数据的请求
+            getPage() {
+                const _this = this;
+                const _windows = window;
+
+                //第一次来到宠物界面，发起请求获取页面数据
+                axios.get("/pets/page?page=" + this.formInline.page + "&pageSize=" + this.formInline.pageSize
+                    + "&petName=" + this.formInline.petName + "&petStatus=" + this.formInline.petStatus).then(
+                    function (response) {
+                        if(response.data.msg=="NoLogin!"){
+                            //没有登录
+                            _windows.location.href = '/web/page/login/login.html';
+                        }
+                        //获取到响应信息
+                        console.log(response.data);
+
+                        if (response.data.code == 1) {
+                            //如果请求成功，展示数据在表格中:数据存入数据模型tableData中
+                            _this.tableData = response.data.data.records;
+                            _this.formInline.total = response.data.data.total;
+                            console.log(_this.tableData);
+                        } else {
+                            //请求失败，进行提示
+                            _this.$message.error(response.data.msg);
+                        }
+                    },
+                    function (err) {
+                        //请求失败，友好的提示框
+                        _this.$message.error("服务器烦恼，请稍后重试");
+                        //控制台打印信息
+                        console.log(err);
+                    });
+                this.getUserType();
+            },
+            //修改页面大小
+            handleSizeChange(val) {
+                console.log(`每页 ${val} 条`);
+                this.formInline.pageSize = val;
+                this.getPage();
+            },
+            //修改页码
+            handleCurrentChange(val) {
+                console.log(`当前页: ${val}`);
+                this.formInline.page = val;
+                this.getPage();
+            },
+
+            /*---------------数据展示的转换操作------------------*/
+            //宠物状态数据转换
+            formatStatus(row) {
+                if (row.petStatus == 0) {
+                    return '待领养'
+                }
+                if (row.petStatus == 1) {
+                    return '已被领养'
+                }
+                if (row.petStatus == 2) {
+                    return '被申领'
+                }
+                if (row.petStatus == 3) {
+                    return '去世'
+                }
+            },
+            //性别数据转换
+            formatSex(row) {
+                if (row.petSex == 1) {
+                    return "雄";
+                } else {
+                    return '雌';
+                }
+            },
+            //年龄转换：
+            formatAge(row) {
+                const date = new Date();
+                //获取今年的年份
+                const nowDate = date.getFullYear();
+                //获取宠物生日
+                let petDate = row.petAge.substring(0, 4);
+                //年龄
+                let age = nowDate - petDate;
+                if(age<=0){
+                    return "未满1岁";
+                }
+                return age + "岁";
+            },
+            //性格转换
+            formatPersonality(row) {
+                if (row.petPersonality == 1) {
+                    return "外向";
+                } else {
+                    return "内向";
+                }
+            },
+
+            /*---------------新增、修改宠物信息操作------------------*/
+            //修改按钮，点击后弹出修改面板，面板数据初始化
+            updatePet(row) {
+                console.log(row);
+                this.addUpdate = 0;
+                //标题
+                this.dialogTitle = "修改宠物信息"
+                //内容
+                this.clearForm();
+
+                this.formPet.petId = row.petId;
+                this.formPet.petName = row.petName;
+                this.formPet.petType = row.petType;
+                this.formPet.petIntroduction = row.petIntroduction;
+
+                this.imageUrl = row.petImage;
+                this.imageName = row.petImage;
+                console.log(this.imageUrl)
+                //显示
+                this.dialogFormVisible = true;
+            },
+            //录入按钮，点击后弹出新增面板，面板数据清空
+            addPet() {
+                this.clearForm();
+
+                this.dialogTitle = "录入宠物信息"
+                this.dialogFormVisible = true;
+            },
+            //新增、修改宠物操作
+            savePet() {
+                //日期格式化
+                console.log("日期对象：" + this.formPet.petAge);
+                console.log(typeof this.formPet.petAge);
+
+                const _this = this;
+                console.log("操作码：" + this.addUpdate);
+
+                //图片地址写入
+                this.formPet.petImage = this.imageName;
+
+                //新增宠物
+                if (this.addUpdate == 1) {
+                    console.log("新增宠物信息："+JSON.stringify(this.formPet));
+
+                    this.formPet.petAge = this.formPet.petAge.toLocaleDateString();
+
+                    axios.post("/pets/save", this.formPet).then(
+                        function (response) {
+                            //获取到响应信息
+                            console.log(response.data);
+                            if (response.data.code == 1) {
+                                //新增成功
+                                //提示框
+                                _this.$message({
+                                    message: '新增宠物成功！',
+                                    type: 'success'
+                                });
+                                _this.dialogFormVisible = false;
+                                //刷新页面
+                                _this.getPage();
+                            } else {
+                                //请求失败，进行提示
+                                _this.$message.error(response.data.msg);
+                            }
+                        },
+                        function (err) {
+                            //请求失败，友好的提示框
+                            _this.$message.error("服务器烦恼，请稍后重试");
+                            //控制台打印信息
+                            console.log(err);
+                        });
+                } else {
+                    //没有修改日期的时候置为空
+                    if (this.formPet.petAge != '') {
+                        this.formPet.petAge = this.formPet.petAge.toLocaleDateString();
+                    } else {
+                        this.formPet.petAge = null;
+                    }
+                    //修改宠物信息
+                    axios.post("/pets/update", this.formPet).then(
+                        function (response) {
+                            //获取到响应信息
+                            console.log(response.data);
+                            if (response.data.code == 1) {
+                                //新增成功，提示框
+                                _this.$message({
+                                    message: '修改宠物信息成功',
+                                    type: 'success'
+                                });
+                                _this.dialogFormVisible = false;
+
+                                //重置表单
+                                _this.clearForm();
+
+                                //刷新页面
+                                _this.getPage();
+                            } else {
+                                //请求失败，进行提示
+                                _this.$message.error(response.data.msg);
+                            }
+                        },
+                        function (err) {
+                            //请求失败，友好的提示框
+                            _this.$message.error("服务器烦恼，请稍后重试");
+                            //控制台打印信息
+                            console.log(err);
+                        });
+
+                }
+                this.dialogFormVisible = false;
+            },
+            //清空新增、修改面板的表单信息
+            clearForm() {
+                //内容
+                this.formPet.petId = '';
+                this.formPet.petName = '';
+                this.formPet.petType = '';
+                this.formPet.petSex = '';
+                this.formPet.petStatus = '';
+                this.formPet.petPersonality = '';
+                this.formPet.petAge = '';
+                this.formPet.petIntroduction = '';
+                this.imageUrl = '';
+                this.imageName = '';
+            },
+            //获取面板标题，新增 or 修改
+            getTitle() {
+                return this.dialogTitle;
+            },
+
+            /*---------------申请领养宠物操作------------------*/
+            //发起申请
+            requestPet() {
+                //未同意协议
+                if (!this.adptionDataAgree) {
+                    this.$message.error("请阅读并同意领养需知！");
+                    return;
+                }
+                //未选中来站时间
+                if (this.adoptionTime == '' || this.adoptionTime == null) {
+                    this.$message.error("请设置来店时间！");
+                    return;
+                }else {
+                    //时间不正常
+
+                    //当前日期
+                    let nowDate = new Date();
+
+                    //7天后的日期对象
+                    let after7DayDate = new Date(nowDate.getFullYear(),nowDate.getMonth(),nowDate.getDate()+7);
+
+                    //进行比较，预约时间是否在7天内
+                    if(this.adoptionTime<=nowDate){
+                        this.$message.error("预约时间为：未来7天内！");
+                        console.log("预约时间不能是今天之前");
+                        return;
+                    }else if(this.adoptionTime >after7DayDate){
+                        this.$message.error("预约时间为：未来7天内！");
+                        console.log("预约时间不能7天以外");
+                        return;
+                    }
+                }
+
+                //查询用户是否设置了真实姓名、手机号、地址
+                if(this.selfUser.userRealname==null||this.selfUser.userRealname==''||
+                    this.selfUser.userPhone==null||this.selfUser.userPhone==''||
+                    this.selfUser.userAddress==null||this.selfUser.userAddress==''){
+                    //如果未设置，弹出提示
+                    this.$confirm('您的账户信息不符合领养要求（必须录入真实姓名、联系电话、地址），是否去账户中心完善个人信息?', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning',
+                        center: true
+                    }).then(() => {
+                        //转到信息管理界面
+                        window.location.href = '../users/self_users.html'
+                        return;
+                    }).catch(() => {
+                        this.$message({
+                            type: 'info',
+                            message: '已取消操作'
+                        });
+                        return;
+                    });
+                }else {
+                    //符合要求
+
+                    //时间格式化
+                    this.adoptionTime = (this.adoptionTime).toLocaleDateString();
+
+                    const _this = this;
+                    //发出请求
+                    axios.post("/pets/adoption", {"petId": this.requestData.petId, "adoptionData": this.adoptionTime}).then(
+                        function (response) {
+                            //获取到响应信息
+                            console.log(response.data);
+                            if (response.data.code == 1) {
+                                //提示框
+                                _this.$message({
+                                    message: '申请成功！',
+                                    type: 'success'
+                                });
+                                _this.requestPetVisible = false;
+                                //刷新页面
+                                _this.getPage();
+                            } else {
+                                //请求失败，进行提示
+                                _this.$message.error(response.data.msg);
+                            }
+                        },
+                        function (err) {
+                            //请求失败，友好的提示框
+                            _this.$message.error("服务器烦恼，请稍后重试");
+                            //控制台打印信息
+                            console.log(err);
+                        });
+                }
+            },
+            //申领按钮
+            requestPte(row) {
+                this.requestData = row;
+
+                console.log(this.requestData);
+
+                this.imageUrl = row.petImage;
+                this.imageName = row.petImage;
+
+                //初始化参数
+                this.adoptionTime = '';
+                this.adptionDataAgree = false;
+
+                this.requestPetVisible = true;
+
+            },
+
+            /*---------------删除宠物操作------------------*/
+            //删除宠物信息
+            handleDelete(index, row) {
+                const _this = this;
+
+                console.log(index, row);
+                this.$confirm('此操作将永久删除该宠物信息, 是否继续?', '提示', {
+                    confirmButtonText: '确定',
+                    cancelButtonText: '取消',
+                    type: 'warning',
+                    center: true
+                }).then(() => {
+                    //发出请求删除宠物信息
+                    axios.delete("/pets", {data: {"petId": row.petId}}).then(
+                        function (response) {
+                            //获取到响应信息
+                            console.log(response.data);
+                            if (response.data.code == 1) {
+                                //删除成功
+                                _this.$message({
+                                    message: '删除成功！',
+                                    type: 'success'
+                                });
+                                _this.dialogFormVisible = false;
+                                //刷新页面
+                                _this.getPage();
+                            } else {
+                                //请求失败，进行提示
+                                _this.$message.error(response.data.msg);
+                            }
+                        },
+                        function (err) {
+                            //请求失败，友好的提示框
+                            _this.$message.error("服务器烦恼，请稍后重试");
+                            //控制台打印信息
+                            console.log(err);
+                        });
+                }).catch(() => {
+                    this.$message({
+                        type: 'info',
+                        message: '已取消删除'
+                    });
+                });
+            },
+
+            /*---------------校验操作------------------*/
+            //校验输入内容
+            checkedForm() {
+                this.$refs.formPet.validate(valid => {
+                    if (valid) {
+                        // 校验通过，执行提交操作
+                        return true;
+                    } else {
+                        // 校验不通过，显示错误信息
+                        return false;
+                    }
+                })
+            },
+            //校验图片
+            onChange(file) {
+                if (file) {
+                    const suffix = file.name.split('.')[1]
+                    const size = file.size / 1024 / 1024 < 2
+                    if (['png', 'jpeg', 'jpg'].indexOf(suffix) < 0) {
+                        this.$message.error('上传图片只支持 png、jpeg、jpg 格式！')
+                        this.$refs.upload.clearFiles()
+                        return false
+                    }
+                    if (!size) {
+                        this.$message.error('图片大小不能超过 2MB!')
+                        return false
+                    }
+                    return file
+                }
+            },
+
+            /*---------------其它操作------------------*/
+            //回主界面
+            goMain() {
+                //页面跳转
+                window.location.href = '/web/page/main/main.html'
+            },
+            //获取图片路径
+            getImage(image) {
+                return `/common/download?name=${image}`
+            },
+            //文件上传成功后执行
+            handleAvatarSuccess(res, file) {
+                this.imageUrl = URL.createObjectURL(file.raw);
+                console.log(this.imageUrl);
+                //拿到文件名
+                this.imageName = res.data;
+            },
+            //根据宠物的状态来设置行背景色
+            tableRowClassName({row, rowIndex}) {
+                //被领养了
+                if (row.petStatus == 1) {
+                    return 'success-row';
+                }
+                //被申请领养了
+                if (row.petStatus == 2) {
+                    return 'waiting-row';
+                }
+                //去世了
+                if (row.petStatus == 3) {
+                    return 'died-row';
+                }
+            },
+            //表头居中
+            headClass() {
+                return "text-align:center";
+            }
+        }
+    })
+</script>
+</html>

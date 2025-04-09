@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>社区交流</title>
+    <!--网站图标-->
+    <link rel="shortcut icon" href="../../images/favicon.ico">
+    <!-- 样式 -->
+    <link rel="stylesheet" href="../../css/community.css">
+    <link rel="stylesheet" href="../../element-ui/lib/theme-chalk/index.css">
+    <!-- 引入组件库 -->
+    <script src="../../js/vue.js"></script>
+    <!-- 引入axios库 -->
+    <script src="../../js/axios.min.js"></script>
+    <script src="../../element-ui/lib/index.js"></script>
+</head>
+<body>
+<div id="app">
+    <el-button @click="goMain" type="success" plain>回主页面</el-button>
+    <h1 style="text-align: center;margin: 20px auto;">社区交流</h1>
+    
+    <div class="module-container">
+        <!-- 宠物行为解读模块 -->
+        <div class="module-card">
+            <h2>宠物行为解读</h2>
+            <p>了解宠物的行为语言，更好地与它们沟通</p>
+            <el-button @click="goPetBehavior" type="primary" class="module-button">进入</el-button>
+        </div>
+        
+        <!-- 情绪匹配推荐模块 -->
+        <div class="module-card">
+            <h2>情绪匹配推荐</h2>
+            <p>根据您的情绪状态，推荐最适合您的宠物</p>
+            <el-button @click="goEmotionMatch" type="primary" class="module-button">进入</el-button>
+        </div>
+        
+        <!-- 社区讨论模块 -->
+        <div class="module-card">
+            <h2>社区讨论</h2>
+            <p>分享您的养宠经验，提问或展示您的宠物</p>
+            <el-button @click="goCommunityPosts" type="primary" class="module-button">进入</el-button>
+        </div>
+    </div>
+</div>
+</body>
+
+<script>
+    new Vue({
+        el: '#app',
+        data() {
+            return {
+                //用户类型
+                userType: ''
+            };
+        },
+        created() {
+            //获取用户类型
+            const _this = this;
+            axios.get("/users/type").then(function (resp) {
+                //设置用户类型
+                _this.userType = resp.data.data;
+                console.log("看看用户类型：" + _this.userType)
+            });
+        },
+        methods: {
+            //返回主页
+            goMain() {
+                window.location.href = '/web/page/main/main.html'
+            },
+            //前往宠物行为解读页面
+            goPetBehavior() {
+                window.location.href = './pet_behavior.html'
+            },
+            //前往情绪匹配推荐页面
+            goEmotionMatch() {
+                window.location.href = './emotion_match.html'
+            },
+            //前往社区讨论页面
+            goCommunityPosts() {
+                window.location.href = './community_posts.html'
+            }
+        }
+    })
+</script>
+</html>
